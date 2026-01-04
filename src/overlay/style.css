@@ -1,0 +1,83 @@
+html {
+  height: 100%;
+}
+
+body {
+  background-color: transparent;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  overflow: hidden;
+}
+
+#container {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start; /* Align left */
+  width: 100%;
+  height: 100%; /* Changed from 100vh to 100% */
+  padding-bottom: 0; /* Removed padding */
+  box-sizing: border-box; /* Ensure padding doesn't affect width if added later */
+}
+
+.subtitle-line {
+  /* Removed background box styles */
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+
+  /* White text with black outline */
+  color: #ffffff;
+  /* White text with black outline using text-stroke for sharpness */
+  color: #ffffff;
+  -webkit-text-stroke: 3px black;
+  paint-order: stroke fill;
+  /* text-shadow:
+    -2px -2px 0 #000,
+    2px -2px 0 #000,
+    -2px 2px 0 #000,
+    2px 2px 0 #000; */
+  /* Right: 10px (half), Left: 30px (increased) */
+  padding: 5px 10px 5px 30px;
+  box-sizing: border-box; /* Ensure padding is included in width */
+  margin-bottom: 5px;
+
+  font-size: 16px; /* Slightly larger for better readability without box */
+  font-weight: 800; /* Bolder font */
+  width: 100%;
+  text-align: left;
+
+  /* Animation */
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeInUp 0.5s forwards;
+}
+
+/* Updated translation style to just match base style (white text) */
+.subtitle-line.translation {
+  color: #ffffff;
+  border-left: none;
+}
+
+/* Blue text for translation part */
+.dst-text {
+  color: #38bdf8; /* Tailwind sky-400 */
+  -webkit-text-stroke: 3px #0c4a6e; /* Tailwind sky-900 (Deep Blue) */
+}
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}

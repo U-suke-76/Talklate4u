@@ -1,0 +1,38 @@
+{
+  "whisper": {
+    "model": "ggml-base.bin",
+    "language": "auto",
+    "serverPort": 8081,
+    "extraArgs": "-ng"
+  },
+  "llm": {
+    "provider": "groq",
+    "apiKey": "",
+    "model": "llama-3.3-70b-versatile",
+    "baseUrl": ""
+  },
+  "translation": {
+    "targetLang": "auto"
+  },
+  "app": {
+    "defaultMicName": ""
+  },
+  "vad": {
+    "silenceDurationMs": 250,
+    "positiveSpeechThreshold": 0.5,
+    "negativeSpeechThreshold": 0.35,
+    "minSpeechMs": 500
+  },
+  "glossary": [],
+  "obs": {
+    "host": "127.0.0.1",
+    "port": 4455,
+    "password": "",
+    "sourceName": "Subtitle",
+    "autoConnect": false,
+    "historySize": 20
+  },
+  "overlay": {
+    "port": 9000
+  }
+}

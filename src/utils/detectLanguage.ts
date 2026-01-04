@@ -1,0 +1,92 @@
+/**
+ * テキストベースの言語検出ユーティリティ
+ * francライブラリを使用してテキストの言語を検出
+ */
+import { franc } from 'franc';
+
+// ISO 639-3 (franc) から ISO 639-1 (Whisper) へのマッピング
+// Whisperがサポートする主要言語のみ
+const ISO_639_3_TO_1: Record<string, string> = {
+  jpn: 'ja',
+  kor: 'ko',
+  eng: 'en',
+  zho: 'zh',
+  cmn: 'zh', // Mandarin Chinese
+  yue: 'zh', // Cantonese
+  spa: 'es',
+  fra: 'fr',
+  deu: 'de',
+  ita: 'it',
+  por: 'pt',
+  rus: 'ru',
+  ara: 'ar',
+  hin: 'hi',
+  tha: 'th',
+  vie: 'vi',
+  ind: 'id',
+  nld: 'nl',
+  pol: 'pl',
+  tur: 'tr',
+  ukr: 'uk',
+};
+
+// 将来的にISO 639-1からISO 639-3への逆変換が必要な場合はここに追加
+
+/**
+ * テキストの言語を検出
+ * @param text 検出対象のテキスト
+ * @returns ISO 639-1 言語コード (例: 'ja', 'ko', 'en') または 'und' (不明)
+ */
+export function detectLanguage(text: string): string {
+  if (!text || text.trim().length < 10) {
+    // テキストが短すぎる場合は検出不能
+    return 'und';
+  }
+
+  const iso639_3 = franc(text, { minLength: 3 });
+  
+  if (iso639_3 === 'und') {
+    return 'und';
+  }
+
+  return ISO_639_3_TO_1[iso639_3] || 'und';
+}
+
+/**
+ * Whisperの言語検出とテキスト言語検出を比較し、より信頼性の高い言語を返す
+ * @param text 認識されたテキスト
+ * @param whisperLang Whisperが検出した言語 (ISO 639-1)
+ * @returns 最終的な言語コード (ISO 639-1)
+ */
+export function resolveLanguage(text: string, whisperLang: string): string {
+  const textLang = detectLanguage(text);
+  
+  // テキストから言語を検出できなかった場合はWhisperの結果を使用
+  if (textLang === 'und') {
+    return whisperLang;
+  }
+
+  // 検出言語が一致する場合はそのまま
+  if (textLang === whisperLang) {
+    return whisperLang;
+  }
+
+  // 日本語と韓国語の混同は特に多いので、テキスト検出を優先
+  if ((whisperLang === 'ja' && textLang === 'ko') ||
+      (whisperLang === 'ko' && textLang === 'ja')) {
+    console.log(`[LanguageDetect] Whisper detected ${whisperLang}, but text appears to be ${textLang}. Using text-based detection.`);
+    return textLang;
+  }
+
+  // その他のケースもテキスト検出を優先（テキストは実際に出力されたものなので信頼性が高い）
+  console.log(`[LanguageDetect] Language mismatch: Whisper=${whisperLang}, Text=${textLang}. Using text-based: ${textLang}`);
+  return textLang;
+}
+
+/**
+ * テキストが特定の言語であるかを確認
+ */
+export function isLanguage(text: string, expectedLang: string): boolean {
+  const detected = detectLanguage(text);
+  return detected === expectedLang;
+}
