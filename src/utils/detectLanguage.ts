@@ -58,28 +58,15 @@ export function detectLanguage(text: string): string {
  * @param whisperLang Whisperが検出した言語 (ISO 639-1)
  * @returns 最終的な言語コード (ISO 639-1)
  */
-export function resolveLanguage(text: string, whisperLang: string): string {
+export function resolveLanguage(text: string): string {
   const textLang = detectLanguage(text);
   
-  // テキストから言語を検出できなかった場合はWhisperの結果を使用
+  // テキストから言語を検出できなかった場合
   if (textLang === 'und') {
-    return whisperLang;
+    return 'und';
   }
 
-  // 検出言語が一致する場合はそのまま
-  if (textLang === whisperLang) {
-    return whisperLang;
-  }
-
-  // 日本語と韓国語の混同は特に多いので、テキスト検出を優先
-  if ((whisperLang === 'ja' && textLang === 'ko') ||
-      (whisperLang === 'ko' && textLang === 'ja')) {
-    console.log(`[LanguageDetect] Whisper detected ${whisperLang}, but text appears to be ${textLang}. Using text-based detection.`);
-    return textLang;
-  }
-
-  // その他のケースもテキスト検出を優先（テキストは実際に出力されたものなので信頼性が高い）
-  console.log(`[LanguageDetect] Language mismatch: Whisper=${whisperLang}, Text=${textLang}. Using text-based: ${textLang}`);
+  // テキスト検出を常に優先
   return textLang;
 }
 

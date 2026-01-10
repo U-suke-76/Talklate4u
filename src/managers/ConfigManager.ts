@@ -13,6 +13,9 @@ const AppConfigSchema = z.object({
         extraArgs: z.string().optional(),
         binPath: z.string().optional(),
         systemPrompt: z.string().optional(),
+        provider: z.enum(['local', 'groq', 'openai']).default('local'),
+        apiKey: z.string().optional(),
+        baseUrl: z.string().optional(),
     }),
     llm: z.object({
         provider: z.enum(['groq', 'openai']),
@@ -96,7 +99,7 @@ export class ConfigManager {
             console.warn('[ConfigManager] Failed to load config.default.json, falling back to empty defaults', error);
             // Fallback to avoid crash, though functionality might be limited
             defaults = {
-                whisper: { model: 'ggml-base.bin', language: 'ja', serverPort: 8081 },
+                whisper: { model: 'ggml-base.bin', language: 'ja', serverPort: 8081, provider: 'local' },
                 llm: { provider: 'groq', apiKey: '', model: 'llama-3.3-70b-versatile' },
                 translation: { targetLang: 'auto' },
                 vad: { silenceDurationMs: 500, positiveSpeechThreshold: 0.5, negativeSpeechThreshold: 0.35, minSpeechMs: 250, volumeThreshold: 0 },

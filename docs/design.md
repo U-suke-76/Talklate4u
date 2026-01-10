@@ -45,11 +45,14 @@ graph TD
         Manager --> WM
         Manager --> TS
         
-        WM -->|Spawn Process| WhisperBin[Whisper Server (C++)]
-        WM -->|HTTP POST (Audio)| WhisperBin
+        WM -->|Spawn (Local)| WhisperBin[Whisper Server (C++)]
+        WM -->|HTTP POST (Local)| WhisperBin
         WhisperBin -->|JSON (Text)| WM
+
+        WM -->|API Req (Cloud)| CloudASR[Groq / OpenAI (ASR)]
+        CloudASR -->|JSON (Text)| WM
         
-        TS -->|API Req| LLM[External LLM (Groq/OpenAI)]
+        TS -->|API Req (Translation)| LLM[Groq / OpenAI (LLM)]
         LLM -->|API Res| TS
         
         TS --> OM
@@ -57,10 +60,11 @@ graph TD
 
     subgraph "External / Output"
         Browser[Overlay Browser Source]
-        LLM_API[Groq / OpenAI API]
+        Cloud_API[Cloud API (Groq/OpenAI)]
         
         OM -->|Socket.IO| Browser
-        LLM <--> LLM_API
+        CloudASR <--> Cloud_API
+        LLM <--> Cloud_API
     end
 ```
 
@@ -70,7 +74,7 @@ graph TD
 | **Runtime** | Electron, Node.js | アプリケーション基盤 |
 | **Frontend** | React, Vite, Tailwind CSS, DaisyUI | UI構築 |
 | **Voice Detection** | @ricky0123/vad-web | ブラウザ上での高精度な発話検知 |
-| **ASR (音声認識)** | nodejs-whisper (whisper.cpp) | ローカル高速音声認識サーバー |
+| **ASR (音声認識)** | nodejs-whisper (Local) / Groq API (Cloud) | ローカル高速サーバー または クラウドAPI |
 | **Translation** | OpenAI SDK (Groq / OpenAI) | 多言語翻訳 (LLM利用) |
 | **Overlay** | Express, Socket.IO | 字幕配信サーバー |
 
@@ -80,7 +84,9 @@ graph TD
 1.  **音声取得**: Rendererプロセスの `useVAD` フックにてマイク入力を監視。
 2.  **発話検知**: 音声が閾値を超えた区間のみを切り出し、WAVフォーマット（16kHz, Mono, 16bit）に変換。
 3.  **送信**: `ipcRenderer.invoke('transcribe-audio', buffer)` を通じてMainプロセスへ送信。
-4.  **推論**: Mainプロセス内の `WhisperManager` が、ローカルで稼働中のWhisperサーバー (`whisper-server.exe`) へHTTP POSTリクエストを送信。
+4.  **推論**: 
+    *   **Local**: `WhisperManager` が `whisper-server.exe` へHTTP POST。
+    *   **Cloud**: `WhisperManager` が Groq/OpenAI API へ直接リクエスト。
 5.  **結果返却**: 認識されたテキストがMainプロセスを経由してRendererへ返される。
 
 ### 3.2 翻訳 (Translation) フロー
@@ -120,7 +126,7 @@ graph TD
 
 ### 4.2 ConfigManager (設定管理)
 ユーザー設定は `config.json` に保存される。
-*   **whisper**: モデルパス、言語、ポート。
+*   **whisper**: プロバイダー(`local`/`groq`)、APIキー、モデル、ポート。
 *   **llm**: プロバイダー種別、APIキー、モデル名、Base URL。
 *   **overlay**: ポート番号。
 

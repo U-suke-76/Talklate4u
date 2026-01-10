@@ -15,20 +15,25 @@
 1. **インストール**
    配布されたインストーラー (`.exe`) を実行してインストールします。
 
-2. **初期設定 (APIキーの設定)**
-   翻訳機能を利用するには、画面右上の「Settings」ボタン、またはメニューバーの **File > Settings** から LLM (AI) の設定が必要です。
+2. **初期設定 (音声認識・翻訳設定)**
+   翻訳機能を利用するには、画面右上の「Settings」ボタン、またはメニューバーの **File > Settings** から設定を行います。
 
-   - **Groq (推奨)**
-     - **API Key**: [Groq Cloud Console](https://console.groq.com/keys) にアクセスして API Key を作成し、入力してください。
-     - 高速かつ現在は無料枠も大きいため、リアルタイム翻訳に最適です。
-     - モデルのリロードボタンで、現在Groqで提供されているモデルを取得できます。
+   - **音声認識 (Whisper)**
+     - **Provider**: `Local` (デフォルト)、`Groq`、`OpenAI` から選択できます。
+     - **Groq/OpenAI**: API Keyの設定が必要です。クラウドASRを使用することで、PCに負荷をかけずに `large-v3-turbo` モデルによる高精度な認識が可能です。
 
-   - **OpenAI API / ローカルLLM**
-     - **Provider**: `OpenAI Compatible` を選択します。
-     - **OpenAI 利用時**: API Key に `sk-` から始まるキーを入力します。Base URL は空欄で OK です。
-     - **Ollama / LM Studio 利用時**:
-       - Base URL にローカルサーバーのアドレス (例: `http://localhost:11434/v1` や `http://localhost:1234/v1`) を入力します。
-       - API Key には `ollama` など任意の文字列を入力してください。
+   - **翻訳 (LLM)**
+     - **Groq (推奨)**
+       - **API Key**: [Groq Cloud Console](https://console.groq.com/keys) にアクセスして API Key を作成し、入力してください。
+       - 高速かつ現在は無料枠も大きいため、リアルタイム翻訳に最適です。
+       - モデルのリロードボタンで、現在Groqで提供されているモデルを取得できます。
+
+     - **OpenAI API / ローカルLLM**
+       - **Provider**: `OpenAI Compatible` を選択します。
+       - **OpenAI 利用時**: API Key に `sk-` から始まるキーを入力します。Base URL は空欄で OK です。
+       - **Ollama / LM Studio 利用時**:
+         - Base URL にローカルサーバーのアドレス (例: `http://localhost:11434/v1` や `http://localhost:1234/v1`) を入力します。
+         - API Key には `ollama` など任意の文字列を入力してください。
 
 3. **文字起こしの開始**
    マイクを選択して「Start」ボタンを押すと、文字起こしと翻訳が始まります。
