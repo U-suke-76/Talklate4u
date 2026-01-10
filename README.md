@@ -15,20 +15,25 @@ Combines local Whisper (OpenVINO optimized) for fast transcription and LLMs (Gro
 1. **Installation**
    Run the distributed installer (`.exe`) to install the application.
 
-2. **Initial Setup (API Key Settings)**
-   To use the translation feature, click the "Settings" button in the top right corner or go to **File > Settings** in the menu bar to configure the LLM (AI) settings.
+2. **Initial Setup (ASR & Translation Settings)**
+   To use the translation feature, click the "Settings" button in the top right corner or go to **File > Settings** in the menu bar.
 
-   - **Groq (Recommended)**
-     - **API Key**: Access the [Groq Cloud Console](https://console.groq.com/keys) to create an API Key and enter it.
-     - It is fast and currently offers a generous free tier, making it ideal for real-time translation.
-     - Use the reload button to fetch the list of models currently available on Groq.
+   - **Speech Recognition (Whisper)**
+     - **Provider**: Select `Local` (default), `Groq`, or `OpenAI`.
+     - **Groq/OpenAI**: Requires an API Key. Cloud ASR allows for high-accuracy recognition using the `large-v3-turbo` model without burdening your PC.
 
-   - **OpenAI API / Local LLM**
-     - **Provider**: Select `OpenAI Compatible`.
-     - **Using OpenAI**: Enter your key starting with `sk-` in the API Key field. Leave the Base URL blank.
-     - **Using Ollama / LM Studio**:
-       - Enter your local server address in the Base URL (e.g., `http://localhost:11434/v1` or `http://localhost:1234/v1`).
-       - Enter any string (e.g., `ollama`) in the API Key field.
+   - **Translation (LLM)**
+     - **Groq (Recommended)**
+       - **API Key**: Access the [Groq Cloud Console](https://console.groq.com/keys) to create an API Key and enter it.
+       - It is fast and currently offers a generous free tier, making it ideal for real-time translation.
+       - Use the reload button to fetch the list of models currently available on Groq.
+
+     - **OpenAI API / Local LLM**
+       - **Provider**: Select `OpenAI Compatible`.
+       - **Using OpenAI**: Enter your key starting with `sk-` in the API Key field. Leave the Base URL blank.
+       - **Using Ollama / LM Studio**:
+         - Enter your local server address in the Base URL (e.g., `http://localhost:11434/v1` or `http://localhost:1234/v1`).
+         - Enter any string (e.g., `ollama`) in the API Key field.
 
 3. **Start Transcription**
    Select your microphone and press the "Start" button to begin transcription and translation.

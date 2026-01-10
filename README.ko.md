@@ -15,20 +15,25 @@
 1. **설치**
    배포된 설치 파일 (`.exe`)을 실행하여 설치합니다.
 
-2. **초기 설정 (API 키 설정)**
-   번역 기능을 이용하려면, 화면 우측 상단의 「Settings」 버튼, 또는 메뉴바의 **File > Settings** 에서 LLM (AI) 설정이 필요합니다.
+2. **초기 설정 (음성 인식 및 번역 설정)**
+   번역 기능을 이용하려면, 화면 우측 상단의 「Settings」 버튼, 또는 메뉴바의 **File > Settings** 에서 설정을 수행합니다.
 
-   - **Groq (권장)**
-     - **API Key**: [Groq Cloud Console](https://console.groq.com/keys) 에 접속하여 API Key를 생성하고 입력해 주세요.
-     - 빠르고 현재 무료 사용량이 넉넉하여 실시간 번역에 최적입니다.
-     - 모델 리로드 버튼으로, 현재 Groq에서 제공되는 모델 목록을 가져올 수 있습니다.
+   - **음성 인식 (Whisper)**
+     - **Provider**: `Local` (기본값), `Groq`, `OpenAI` 중에서 선택할 수 있습니다.
+     - **Groq/OpenAI**: API Key 설정이 필요합니다. 클라우드 ASR을 사용하면 PC에 부담을 주지 않고 `large-v3-turbo` 모델을 통한 고정밀 인식이 가능합니다.
 
-   - **OpenAI API / 로컬 LLM**
-     - **Provider**: `OpenAI Compatible` 을 선택합니다.
-     - **OpenAI 사용 시**: API Key에 `sk-` 로 시작하는 키를 입력합니다. Base URL은 비워두셔도 됩니다.
-     - **Ollama / LM Studio 사용 시**:
-       - Base URL에 로컬 서버 주소 (예: `http://localhost:11434/v1` 또는 `http://localhost:1234/v1`) 를 입력합니다.
-       - API Key에는 `ollama` 등 임의의 문자열을 입력해 주세요.
+   - **번역 (LLM)**
+     - **Groq (권장)**
+       - **API Key**: [Groq Cloud Console](https://console.groq.com/keys) 에 접속하여 API Key를 생성하고 입력해 주세요.
+       - 빠르고 현재 무료 사용량이 넉넉하여 실시간 번역에 최적입니다.
+       - 모델 리로드 버튼으로, 현재 Groq에서 제공되는 모델 목록을 가져올 수 있습니다.
+
+     - **OpenAI API / 로컬 LLM**
+       - **Provider**: `OpenAI Compatible` 을 선택합니다.
+       - **OpenAI 사용 시**: API Key에 `sk-` 로 시작하는 키를 입력합니다. Base URL은 비워두셔도 됩니다.
+       - **Ollama / LM Studio 사용 시**:
+         - Base URL에 로컬 서버 주소 (예: `http://localhost:11434/v1` 또는 `http://localhost:1234/v1`) 를 입력합니다.
+         - API Key에는 `ollama` 등 임의의 문자열을 입력해 주세요.
 
 3. **받아쓰기 시작**
    마이크를 선택하고 「Start」 버튼을 누르면 받아쓰기 및 번역이 시작됩니다.

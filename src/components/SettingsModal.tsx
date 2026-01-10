@@ -17,6 +17,9 @@ interface AppConfig {
     extraArgs?: string;
     binPath?: string;
     systemPrompt?: string;
+    provider?: "local" | "groq" | "openai";
+    apiKey?: string;
+    baseUrl?: string;
   };
   llm: {
     provider: "groq" | "openai";
@@ -57,6 +60,9 @@ const DEFAULT_CONFIG: AppConfig = {
     serverPort: 8081,
     language: "ja",
     extraArgs: "",
+    provider: "local",
+    apiKey: "",
+    baseUrl: "",
   },
   llm: { provider: "groq", apiKey: "", model: "llama-3.3-70b-versatile" },
   translation: { targetLang: "auto" },
@@ -115,6 +121,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         llm: migratedLLM || (current as AppConfig).llm || DEFAULT_CONFIG.llm,
         translation:
           (current as AppConfig).translation || DEFAULT_CONFIG.translation,
+        vad: { ...DEFAULT_CONFIG.vad, ...((current as AppConfig).vad || {}) },
         glossary: (current as AppConfig).glossary || [],
       };
 
@@ -217,66 +224,184 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       {/* Whisper Config */}
       <div className="col-span-2 divider text-gray-500">Whisper Settings</div>
 
-      <label className="font-bold text-gray-300" htmlFor="whisper-model">
-        Whisper Model
+      {/* Whisper Provider */}
+      <label className="font-bold text-gray-300" htmlFor="whisper-provider">
+        Whisper Provider
       </label>
       <select
-        id="whisper-model"
+        id="whisper-provider"
         className="select select-bordered w-full"
-        value={config.whisper.model}
-        onChange={(e) =>
-          setConfig({
-            ...config,
-            whisper: { ...config.whisper, model: e.target.value },
-          })
-        }
-      >
-        {models.map((m) => (
-          <option key={m.value} value={m.value}>
-            {m.name} {m.exists ? "" : "(Download Needed)"}
-          </option>
-        ))}
-      </select>
-
-      <label className="font-bold text-gray-300" htmlFor="whisper-bin-path">
-        Whisper Server Path (Optional)
-      </label>
-      <input
-        id="whisper-bin-path"
-        type="text"
-        className="input input-bordered w-full font-mono text-sm"
-        placeholder="Absolute path to whisper-server.exe (Leave empty for built-in)"
-        value={config.whisper.binPath || ""}
-        onChange={(e) =>
-          setConfig({
-            ...config,
-            whisper: { ...config.whisper, binPath: e.target.value },
-          })
-        }
-      />
-      <div className="col-span-2 text-xs text-gray-500 mb-2">
-        Use this to specify a custom version (e.g., CUDA/GPU version). If empty,
-        the built-in CPU version will be used.
-      </div>
-
-      <label className="font-bold text-gray-300" htmlFor="whisper-port">
-        Whisper Port
-      </label>
-      <input
-        id="whisper-port"
-        type="number"
-        className="input input-bordered w-full"
-        value={config.whisper.serverPort}
+        value={config.whisper.provider || "local"}
         onChange={(e) =>
           setConfig({
             ...config,
             whisper: {
               ...config.whisper,
-              serverPort: parseInt(e.target.value),
+              provider: e.target.value as "local" | "groq" | "openai",
+              // Reset model to default when switching? Maybe not necessary but cleaner
+              model:
+                e.target.value === "groq"
+                  ? "whisper-large-v3-turbo"
+                  : e.target.value === "local"
+                    ? "ggml-base.bin"
+                    : "whisper-1",
             },
           })
         }
-      />
+      >
+        <option value="local">Local (whisper.cpp)</option>
+        <option value="groq">Groq API</option>
+        <option value="openai">OpenAI API</option>
+      </select>
+
+      {/* API Key (Remote only) */}
+      {(config.whisper.provider === "groq" ||
+        config.whisper.provider === "openai") && (
+        <>
+          <label className="font-bold text-gray-300" htmlFor="whisper-api-key">
+            API Key
+          </label>
+          <input
+            id="whisper-api-key"
+            type="password"
+            className="input input-bordered w-full font-mono text-sm"
+            value={config.whisper.apiKey || ""}
+            placeholder={
+              config.whisper.provider === "groq" ? "gsk_..." : "sk-..."
+            }
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                whisper: { ...config.whisper, apiKey: e.target.value },
+              })
+            }
+          />
+        </>
+      )}
+
+      {/* Base URL (OpenAI only) */}
+      {config.whisper.provider === "openai" && (
+        <>
+          <label className="font-bold text-gray-300" htmlFor="whisper-base-url">
+            Base URL
+          </label>
+          <input
+            id="whisper-base-url"
+            type="text"
+            className="input input-bordered w-full font-mono text-sm"
+            value={config.whisper.baseUrl || ""}
+            placeholder="https://api.openai.com/v1/audio/transcriptions"
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                whisper: { ...config.whisper, baseUrl: e.target.value },
+              })
+            }
+          />
+        </>
+      )}
+
+      <label className="font-bold text-gray-300" htmlFor="whisper-model">
+        Whisper Model
+      </label>
+
+      {config.whisper.provider === "groq" ? (
+        <select
+          id="whisper-model"
+          className="select select-bordered w-full"
+          value={config.whisper.model}
+          onChange={(e) =>
+            setConfig({
+              ...config,
+              whisper: { ...config.whisper, model: e.target.value },
+            })
+          }
+        >
+          <option value="whisper-large-v3-turbo">whisper-large-v3-turbo</option>
+          <option value="whisper-large-v3">whisper-large-v3</option>
+          <option value="distil-whisper-large-v3-en">
+            distil-whisper-large-v3-en
+          </option>
+          <option value="whisper-1">whisper-1</option>
+        </select>
+      ) : config.whisper.provider === "openai" ? (
+        <input
+          id="whisper-model"
+          type="text"
+          className="input input-bordered w-full"
+          value={config.whisper.model}
+          placeholder="whisper-1"
+          onChange={(e) =>
+            setConfig({
+              ...config,
+              whisper: { ...config.whisper, model: e.target.value },
+            })
+          }
+        />
+      ) : (
+        <select
+          id="whisper-model"
+          className="select select-bordered w-full"
+          value={config.whisper.model}
+          onChange={(e) =>
+            setConfig({
+              ...config,
+              whisper: { ...config.whisper, model: e.target.value },
+            })
+          }
+        >
+          {models.map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.name} {m.exists ? "" : "(Download Needed)"}
+            </option>
+          ))}
+        </select>
+      )}
+
+      {/* Local Only Settings */}
+      {(!config.whisper.provider || config.whisper.provider === "local") && (
+        <>
+          <label className="font-bold text-gray-300" htmlFor="whisper-bin-path">
+            Whisper Server Path (Optional)
+          </label>
+          <input
+            id="whisper-bin-path"
+            type="text"
+            className="input input-bordered w-full font-mono text-sm"
+            placeholder="Absolute path to whisper-server.exe (Leave empty for built-in)"
+            value={config.whisper.binPath || ""}
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                whisper: { ...config.whisper, binPath: e.target.value },
+              })
+            }
+          />
+          <div className="col-span-2 text-xs text-gray-500 mb-2">
+            Use this to specify a custom version (e.g., CUDA/GPU version). If
+            empty, the built-in CPU version will be used.
+          </div>
+
+          <label className="font-bold text-gray-300" htmlFor="whisper-port">
+            Whisper Port
+          </label>
+          <input
+            id="whisper-port"
+            type="number"
+            className="input input-bordered w-full"
+            value={config.whisper.serverPort}
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                whisper: {
+                  ...config.whisper,
+                  serverPort: parseInt(e.target.value),
+                },
+              })
+            }
+          />
+        </>
+      )}
 
       <label className="font-bold text-gray-300" htmlFor="whisper-language">
         Speech Recognition Language (Source)
@@ -471,7 +596,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </span>
       </div>
       <div className="col-span-2 text-xs text-gray-500 mb-2">
-        低すぎる音量を無視します。0%で無効化。15%程度で環境ノイズを除去できます。
+        Ignores low volume levels. 0% to disable. ~15% filters out background
+        noise
       </div>
 
       <div className="col-span-2 divider text-gray-500">LLM API Settings</div>

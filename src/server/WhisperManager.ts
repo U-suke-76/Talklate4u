@@ -21,6 +21,7 @@ export class WhisperManager extends EventEmitter {
     private binPath: string;
     private modelsDir: string;
     private httpAgent: http.Agent;
+    private isRemoteActive = false;
 
     constructor() {
         super();
@@ -82,6 +83,7 @@ export class WhisperManager extends EventEmitter {
     }
 
     async checkStatus() {
+        if (this.isRemoteActive) return { running: true };
         if (!this.process) return { running: false };
         return { running: true };
     }
@@ -90,11 +92,69 @@ export class WhisperManager extends EventEmitter {
         return this.modelsDir;
     }
 
+    private async verifyRemoteConnection(provider: 'groq' | 'openai', apiKey: string, baseUrl?: string): Promise<boolean> {
+        try {
+            console.log(`[WhisperManager] Verifying connection to ${provider}...`);
+            let url = '';
+            if (provider === 'groq') {
+                url = 'https://api.groq.com/openai/v1/models';
+            } else {
+                url = baseUrl ? `${baseUrl}/models` : 'https://api.openai.com/v1/models';
+            }
+
+            const axiosConfig: AxiosRequestConfig = {
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                },
+                httpAgent: this.httpAgent,
+                timeout: 10000 
+            };
+
+            await axios.get(url, axiosConfig);
+            console.log(`[WhisperManager] Connection verified: ${provider}`);
+            return true;
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.error(`[WhisperManager] Connection verification failed: ${msg}`);
+            return false;
+        }
+    }
+
     async start(language?: string): Promise<void> {
         const config = ConfigManager.getInstance().getConfig();
         const targetLang = language || config.whisper.language || 'ja';
         const port = config.whisper.serverPort || 8081;
         const modelName = config.whisper.model || 'ggml-base.bin';
+
+        // Check provider
+        if (config.whisper.provider === 'groq' || config.whisper.provider === 'openai') {
+            console.log(`[WhisperManager] Using remote provider: ${config.whisper.provider}`);
+            
+            // Validate Connection
+            const apiKey = config.whisper.apiKey;
+            if (apiKey) {
+                 this.isRemoteActive = await this.verifyRemoteConnection(
+                     config.whisper.provider, 
+                     apiKey, 
+                     config.whisper.baseUrl
+                 );
+            } else {
+                console.warn('[WhisperManager] No API Key for remote provider');
+                this.isRemoteActive = false;
+            }
+
+            // No local server to start
+            if (this.process) {
+                this.stop();
+            }
+            this.currentLanguage = targetLang;
+            return;
+        }
+        
+        // Local Provider Logic
+        this.isRemoteActive = false; // Reset if switching to local
+
+        // Local Provider Logic
         const modelPath = path.join(this.modelsDir, modelName);
 
         // Resolve binPath dynamically to allow config changes
@@ -214,6 +274,7 @@ export class WhisperManager extends EventEmitter {
     }
 
     stop() {
+        this.isRemoteActive = false;
         if (this.process) {
             console.log('[WhisperManager] Stopping Server...');
             this.process.kill();
@@ -286,8 +347,8 @@ export class WhisperManager extends EventEmitter {
 
     public async transcribe(buffer: ArrayBuffer): Promise<{ text?: string; language?: string; error?: string; details?: string }> {
         const config = ConfigManager.getInstance().getConfig();
-        const port = config.whisper.serverPort || 8081;
-        
+        const provider = config.whisper.provider || 'local';
+
         try {
             const formData = new FormData();
             formData.append('file', Buffer.from(buffer), { 
@@ -295,50 +356,116 @@ export class WhisperManager extends EventEmitter {
                 contentType: 'audio/wav',
             });
 
-            if (config.whisper.systemPrompt && config.whisper.systemPrompt.trim().length > 0) {
-                 formData.append('prompt', config.whisper.systemPrompt);
-                 console.debug(`[WhisperManager] Using System Prompt: "${config.whisper.systemPrompt}"`);
-            }
-
-            // Cast config object to AxiosRequestConfig to handle potential type discrepancies with maxBodyLength
-            const axiosConfig: AxiosRequestConfig = {
-                headers: {
-                    ...formData.getHeaders(),
-                    'Content-Length': formData.getLengthSync()
-                },
-                maxBodyLength: Infinity,
-                maxContentLength: Infinity,
-                httpAgent: this.httpAgent, // Use our persistent agent
-            };
-
-            // Start Request
-            const res = await axios.post<{text: string}>(`http://127.0.0.1:${port}/inference`, formData, axiosConfig);
-            console.log('[WhisperManager] Inference Response:', JSON.stringify(res.data, null, 2));
-
-            // テキストベースの言語検出で言語を決定
-            // Whisperのstderrからの言語検出は不安定なため、テキスト内容から判定
-            const textContent = res.data.text.trim();
-            let finalLang = 'ja'; // Default fallback
-
-            if (textContent.length > 0) {
-                // currentLanguageが設定されている場合はそれを初期値として使用
-                const initialLang = (this.currentLanguage && this.currentLanguage !== 'auto') 
-                    ? this.currentLanguage 
-                    : 'ja';
-                
-                // テキストベースの言語検出で補正
-                finalLang = resolveLanguage(textContent, initialLang);
-                
-                if (finalLang !== initialLang) {
-                    console.log(`[WhisperManager] Language detected from text: ${initialLang} -> ${finalLang}`);
+            if (provider === 'groq' || provider === 'openai') {
+                const apiKey = config.whisper.apiKey;
+                if (!apiKey) {
+                    throw new Error('API Key is required for remote provider');
                 }
+
+                const model = config.whisper.model || 'whisper-1'; // Default fallbacks
                 
-                this.currentLanguage = finalLang;
+                // Groq default URL
+                let baseUrl = 'https://api.groq.com/openai/v1/audio/transcriptions';
+                if (provider === 'openai') baseUrl = 'https://api.openai.com/v1/audio/transcriptions';
+                if (config.whisper.baseUrl) baseUrl = config.whisper.baseUrl;
+
+                formData.append('model', model);
+                // formData.append('language', config.whisper.language || 'ja'); // Optional: force language if needed, but auto is usually better
+                // Response format verbose_json allows us to get language? Or text is fine?
+                // Groq/OpenAI default response is JSON { text: "..." }
+                // To get language, we might need response_format='verbose_json'
+                
+                formData.append('response_format', 'verbose_json');
+
+                const axiosConfig: AxiosRequestConfig = {
+                    headers: {
+                        ...formData.getHeaders(),
+                        'Authorization': `Bearer ${apiKey}`,
+                    },
+                    maxBodyLength: Infinity,
+                    maxContentLength: Infinity,
+                    httpAgent: this.httpAgent,
+                };
+
+                const res = await axios.post(baseUrl, formData, axiosConfig);
+                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const data = res.data as any;
+
+                console.log('[WhisperManager] Remote Inference Response:', JSON.stringify(data, null, 2));
+
+                const text = data.text;
+                let language = data.language || 'ja'; // verbose_json returns language name (e.g. "japanese")
+
+                // Normalize language name to code
+                const langMap: Record<string, string> = {
+                    'japanese': 'ja',
+                    'english': 'en',
+                    'korean': 'ko',
+                    'chinese': 'zh'
+                };
+                
+                if (langMap[language.toLowerCase()]) {
+                    language = langMap[language.toLowerCase()];
+                }
+
+                return { text, language };
+
+            } else {
+                // LOCAL
+                const port = config.whisper.serverPort || 8081;
+
+                if (config.whisper.systemPrompt && config.whisper.systemPrompt.trim().length > 0) {
+                     formData.append('prompt', config.whisper.systemPrompt);
+                     console.debug(`[WhisperManager] Using System Prompt: "${config.whisper.systemPrompt}"`);
+                }
+
+                // Cast config object to AxiosRequestConfig to handle potential type discrepancies with maxBodyLength
+                const axiosConfig: AxiosRequestConfig = {
+                    headers: {
+                        ...formData.getHeaders(),
+                        'Content-Length': formData.getLengthSync()
+                    },
+                    maxBodyLength: Infinity,
+                    maxContentLength: Infinity,
+                    httpAgent: this.httpAgent, // Use our persistent agent
+                };
+
+                // Start Request
+                const res = await axios.post<{text: string}>(`http://127.0.0.1:${port}/inference`, formData, axiosConfig);
+                console.log('[WhisperManager] Inference Response:', JSON.stringify(res.data, null, 2));
+
+                // テキストベースの言語検出で言語を決定
+                // Whisperのstderrからの言語検出は不安定なため、テキスト内容から判定
+                const textContent = res.data.text.trim();
+                let finalLang = 'ja'; // Default fallback
+
+                if (textContent.length > 0) {
+                    // currentLanguageが設定されている場合はそれを初期値として使用
+                    const initialLang = (this.currentLanguage && this.currentLanguage !== 'auto') 
+                        ? this.currentLanguage 
+                        : 'ja';
+                    
+                    // テキストベースの言語検出で補正
+                    const detectedLang = resolveLanguage(textContent);
+                    
+                    if (detectedLang !== 'und') {
+                        finalLang = detectedLang;
+                        if (finalLang !== initialLang) {
+                            console.log(`[WhisperManager] Language detected from text: ${initialLang} -> ${finalLang}`);
+                        }
+                    } else {
+                        // 検出不能時は初期値 (Whisperの言語またはja) を維持
+                        finalLang = initialLang;
+                    }
+                    
+                    this.currentLanguage = finalLang;
+                }
+
+                console.log(`[WhisperManager] Final Resolution - Text: "${res.data.text.substring(0, 20)}...", Lang: ${finalLang}`);
+
+                return { text: res.data.text, language: finalLang };
             }
 
-            console.log(`[WhisperManager] Final Resolution - Text: "${res.data.text.substring(0, 20)}...", Lang: ${finalLang}`);
-
-            return { text: res.data.text, language: finalLang };
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : String(err);
             console.error('[WhisperManager] Transcribe error:', message);

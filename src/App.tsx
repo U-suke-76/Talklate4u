@@ -76,57 +76,68 @@ const App: React.FC = () => {
     isListeningRef.current = isListening;
   }, [isListening]);
 
+  const startRecording = async () => {
+    setStatusText("Starting VAD...");
+    try {
+      const currentConfig = (await window.electronAPI.loadConfig()) as {
+        app?: { defaultMicName?: string };
+        vad?: {
+          silenceDurationMs?: number;
+          positiveSpeechThreshold?: number;
+          negativeSpeechThreshold?: number;
+          minSpeechMs?: number;
+          volumeThreshold?: number;
+        };
+      };
+      const micLabel = currentConfig?.app?.defaultMicName;
+      // 1. Exact Match & Selection
+      const mics = await loadMicrophones();
+      const targetMic = await selectMicrophone(micLabel, mics);
+
+      const micId = targetMic ? targetMic.deviceId : "default";
+
+      const vadOptions = {
+        silenceDurationMs: currentConfig?.vad?.silenceDurationMs || 500,
+        positiveSpeechThreshold:
+          currentConfig?.vad?.positiveSpeechThreshold || 0.5,
+        negativeSpeechThreshold:
+          currentConfig?.vad?.negativeSpeechThreshold || 0.35,
+        minSpeechMs: currentConfig?.vad?.minSpeechMs || 250,
+        volumeThreshold: currentConfig?.vad?.volumeThreshold || 0,
+      };
+
+      await startVAD(micId, vadOptions, handleSpeechEnd);
+      setStatusText(`Listening (${targetMic ? "Custom" : "Default"})...`);
+    } catch (e) {
+      console.error(e);
+      const errMsg = `Error starting VAD: ${
+        e instanceof Error ? e.message : String(e)
+      }`;
+      setStatusText("Error starting VAD");
+      addSystemLog(errMsg);
+      window.electronAPI.log(errMsg);
+    }
+  };
+
   const toggleRecording = async () => {
     if (isListening) {
       await stopVAD();
       setStatusText("Stopped");
       setActiveMic(null);
     } else {
-      setStatusText("Starting VAD...");
-      try {
-        const currentConfig = (await window.electronAPI.loadConfig()) as {
-          app?: { defaultMicName?: string };
-          vad?: {
-            silenceDurationMs?: number;
-            positiveSpeechThreshold?: number;
-            negativeSpeechThreshold?: number;
-            minSpeechMs?: number;
-            volumeThreshold?: number;
-          };
-          llm?: {
-            provider?: string;
-            model?: string;
-            groqModels?: string[];
-          };
-        };
-        const micLabel = currentConfig?.app?.defaultMicName;
-        // 1. Exact Match & Selection
-        const mics = await loadMicrophones();
-        const targetMic = await selectMicrophone(micLabel, mics);
+      await startRecording();
+    }
+  };
 
-        const micId = targetMic ? targetMic.deviceId : "default";
-
-        const vadOptions = {
-          silenceDurationMs: currentConfig?.vad?.silenceDurationMs || 500,
-          positiveSpeechThreshold:
-            currentConfig?.vad?.positiveSpeechThreshold || 0.5,
-          negativeSpeechThreshold:
-            currentConfig?.vad?.negativeSpeechThreshold || 0.35,
-          minSpeechMs: currentConfig?.vad?.minSpeechMs || 250,
-          volumeThreshold: currentConfig?.vad?.volumeThreshold || 0,
-        };
-
-        await startVAD(micId, vadOptions, handleSpeechEnd);
-        setStatusText(`Listening (${targetMic ? "Custom" : "Default"})...`);
-      } catch (e) {
-        console.error(e);
-        const errMsg = `Error starting VAD: ${
-          e instanceof Error ? e.message : String(e)
-        }`;
-        setStatusText("Error starting VAD");
-        addSystemLog(errMsg);
-        window.electronAPI.log(errMsg);
-      }
+  const handleSettingsSaved = async () => {
+    await checkServer();
+    if (isListeningRef.current) {
+      addSystemLog("Settings saved. Restarting VAD to apply changes...");
+      // Stop current VAD
+      await stopVAD();
+      // Wait a bit to ensure clean stop? Usually not needed if await works.
+      // Restart with new settings
+      await startRecording();
     }
   };
 
@@ -135,7 +146,7 @@ const App: React.FC = () => {
       <header className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold bg-linear-to-r from-primary to-accent bg-clip-text text-transparent">
-            Talk Translate 4
+            Talklate4u
           </h1>
           <span
             className={cn(
@@ -211,7 +222,7 @@ const App: React.FC = () => {
       <SettingsModal
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
-        onSaved={checkServer}
+        onSaved={handleSettingsSaved}
         onLog={addSystemLog}
       />
 
