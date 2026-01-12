@@ -88,7 +88,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [models, setModels] = useState<WhisperModel[]>([]);
   const [allMics, setAllMics] = useState<MicrophoneEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'general' | 'glossary'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'whisper' | 'llm' | 'vad' | 'glossary'>(
+    'general',
+  );
 
   const loadData = React.useCallback(async () => {
     const current = await window.electronAPI.loadConfig();
@@ -172,16 +174,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const getGroqOptions = () => {
     const defaults = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
-    // If we have fetched models, use them. Merge with defaults to ensure currently selected is there?
-    // Actually user wanted "fetched list to be used".
-    // Let's use fetched list if available, otherwise defaults.
-    // Also ensure current model is in the list to avoid hidden selection.
-
     const list =
       config.llm.groqModels && config.llm.groqModels.length > 0 ? config.llm.groqModels : defaults;
-
-    // Unique. Add 'auto' at the beginning.
-    // Prioritize fetched/sorted list over defaults
     return Array.from(new Set(['auto', ...list, ...defaults]));
   };
 
@@ -218,8 +212,83 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const renderGeneralTab = () => (
     <div className="py-4 grid grid-cols-[140px_1fr] gap-4 items-center">
-      {/* Whisper Config */}
-      <div className="col-span-2 divider text-gray-500">Whisper Settings</div>
+      <div className="col-span-2 text-lg font-bold text-gray-300 mb-2">General Settings</div>
+
+      {/* Microphone */}
+      <label className="font-bold text-gray-300" htmlFor="app-mic">
+        Microphone
+      </label>
+      <select
+        id="app-mic"
+        className="select select-bordered w-full"
+        title="Microphone"
+        value={config.app?.defaultMicName || ''}
+        onChange={(e) =>
+          setConfig({
+            ...config,
+            app: { ...config.app, defaultMicName: e.target.value },
+          })
+        }
+      >
+        <option value="" disabled>
+          Select Microphone
+        </option>
+        {allMics.map((mic) => (
+          <option key={mic.deviceId} value={mic.label}>
+            {mic.label}
+          </option>
+        ))}
+      </select>
+
+      {/* Source Language */}
+      <label className="font-bold text-gray-300" htmlFor="whisper-language">
+        Speech Language
+      </label>
+      <select
+        id="whisper-language"
+        className="select select-bordered w-full"
+        value={config.whisper.language || 'ja'}
+        onChange={(e) =>
+          setConfig({
+            ...config,
+            whisper: { ...config.whisper, language: e.target.value },
+          })
+        }
+      >
+        <option value="ja">Japanese</option>
+        <option value="ko">Korean</option>
+        <option value="en">English</option>
+        <option value="auto">Auto</option>
+      </select>
+
+      {/* Target Language */}
+      <label className="font-bold text-gray-300" htmlFor="target-language">
+        Target Language
+      </label>
+      <select
+        id="target-language"
+        className="select select-bordered w-full"
+        value={config.translation?.targetLang || 'ja-ko'}
+        onChange={(e) =>
+          setConfig({
+            ...config,
+            translation: { ...config.translation, targetLang: e.target.value },
+          })
+        }
+      >
+        <option value="ja-ko">Japanese ⇔ Korean (Bi-directional)</option>
+        <option value="ja-en">Japanese ⇔ English (Bi-directional)</option>
+        <option value="ko-en">Korean ⇔ English (Bi-directional)</option>
+        <option value="ja">Japanese (Force Output)</option>
+        <option value="ko">Korean (Force Output)</option>
+        <option value="en">English (Force Output)</option>
+      </select>
+    </div>
+  );
+
+  const renderWhisperTab = () => (
+    <div className="py-4 grid grid-cols-[140px_1fr] gap-4 items-center">
+      <div className="col-span-2 text-lg font-bold text-gray-300 mb-2">Whisper Settings</div>
 
       {/* Whisper Provider */}
       <label className="font-bold text-gray-300" htmlFor="whisper-provider">
@@ -235,7 +304,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             whisper: {
               ...config.whisper,
               provider: e.target.value as 'local' | 'groq' | 'openai',
-              // Reset model to default when switching? Maybe not necessary but cleaner
               model:
                 e.target.value === 'groq'
                   ? 'whisper-large-v3-turbo'
@@ -251,7 +319,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <option value="openai">OpenAI API</option>
       </select>
 
-      {/* API Key (Remote only) */}
+      {/* API Key (Remote) */}
       {(config.whisper.provider === 'groq' || config.whisper.provider === 'openai') && (
         <>
           <label className="font-bold text-gray-300" htmlFor="whisper-api-key">
@@ -273,7 +341,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </>
       )}
 
-      {/* Base URL (OpenAI only) */}
+      {/* Base URL (OpenAI) */}
       {config.whisper.provider === 'openai' && (
         <>
           <label className="font-bold text-gray-300" htmlFor="whisper-base-url">
@@ -295,10 +363,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </>
       )}
 
+      {/* Whisper Model */}
       <label className="font-bold text-gray-300" htmlFor="whisper-model">
         Whisper Model
       </label>
-
       {config.whisper.provider === 'groq' ? (
         <select
           id="whisper-model"
@@ -354,7 +422,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       {(!config.whisper.provider || config.whisper.provider === 'local') && (
         <>
           <label className="font-bold text-gray-300" htmlFor="whisper-bin-path">
-            Whisper Server Path (Optional)
+            Whisper Server Path
           </label>
           <input
             id="whisper-bin-path"
@@ -370,8 +438,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             }
           />
           <div className="col-span-2 text-xs text-gray-500 mb-2">
-            Use this to specify a custom version (e.g., CUDA/GPU version). If empty, the built-in
-            CPU version will be used.
+            Optional: Specify custom server path (e.g., for GPU/CUDA version).
           </div>
 
           <label className="font-bold text-gray-300" htmlFor="whisper-port">
@@ -395,55 +462,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </>
       )}
 
-      <label className="font-bold text-gray-300" htmlFor="whisper-language">
-        Speech Recognition Language (Source)
-      </label>
-      <select
-        id="whisper-language"
-        className="select select-bordered w-full"
-        value={config.whisper.language || 'ja'}
-        onChange={(e) =>
-          setConfig({
-            ...config,
-            whisper: { ...config.whisper, language: e.target.value },
-          })
-        }
-      >
-        <option value="ja">Japanese</option>
-        <option value="ko">Korean</option>
-        <option value="en">English</option>
-        <option value="auto">Auto</option>
-      </select>
-
-      <label className="font-bold text-gray-300" htmlFor="target-language">
-        Target Language
-      </label>
-      <select
-        id="target-language"
-        className="select select-bordered w-full"
-        value={config.translation?.targetLang || 'ja-ko'}
-        onChange={(e) =>
-          setConfig({
-            ...config,
-            translation: { ...config.translation, targetLang: e.target.value },
-          })
-        }
-      >
-        <option value="ja-ko">Japanese ⇔ Korean (Bi-directional)</option>
-        <option value="ja-en">Japanese ⇔ English (Bi-directional)</option>
-        <option value="ko-en">Korean ⇔ English (Bi-directional)</option>
-        <option value="ja">Japanese (Force Output)</option>
-        <option value="ko">Korean (Force Output)</option>
-        <option value="en">English (Force Output)</option>
-      </select>
+      {/* Advanced Settings */}
+      <div className="col-span-2 divider text-gray-500">Advanced</div>
 
       <label className="font-bold text-gray-300" htmlFor="whisper-system-prompt">
-        System Prompt (Advanced)
+        System Prompt
       </label>
       <textarea
         id="whisper-system-prompt"
         className="textarea textarea-bordered w-full h-24"
-        placeholder="Optional: Context, vocabulary, or style instructions (e.g. 'This is a discussion about medical terms.')"
+        placeholder="Optional: Context, vocabulary..."
         value={config.whisper.systemPrompt || ''}
         onChange={(e) =>
           setConfig({
@@ -452,12 +480,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           })
         }
       />
-      <div className="col-span-2 text-xs text-gray-500 mb-2">
-        Guides the speech recognition to better understand specific words or context.
-      </div>
 
       <label className="font-bold text-gray-300" htmlFor="whisper-extra-args">
-        Extra Arguments (Advanced)
+        Extra Arguments
       </label>
       <input
         id="whisper-extra-args"
@@ -472,13 +497,128 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           })
         }
       />
-      <div className="col-span-2 text-xs text-gray-500 mb-2">
-        ⚠ Caution: Incorrect arguments may prevent the server from starting. Check whisper-server
-        --help.
-      </div>
+    </div>
+  );
 
-      {/* VAD Config */}
-      <div className="col-span-2 divider text-gray-500">VAD Settings</div>
+  const renderLLMTab = () => (
+    <div className="py-4 grid grid-cols-[140px_1fr] gap-4 items-center">
+      <div className="col-span-2 text-lg font-bold text-gray-300 mb-2">LLM Settings</div>
+
+      {/* Provider */}
+      <label className="font-bold text-gray-300" htmlFor="llm-provider">
+        Provider
+      </label>
+      <select
+        id="llm-provider"
+        className="select select-bordered w-full"
+        value={config.llm.provider}
+        onChange={(e) =>
+          setConfig({
+            ...config,
+            llm: {
+              ...config.llm,
+              provider: e.target.value as 'groq' | 'openai',
+            },
+          })
+        }
+      >
+        <option value="groq">Groq (Recommended)</option>
+        <option value="openai">OpenAI Compatible (Ollama/LM Studio)</option>
+      </select>
+
+      {/* Base URL (OpenAI) */}
+      {config.llm.provider === 'openai' && (
+        <>
+          <label className="font-bold text-gray-300" htmlFor="llm-base-url">
+            Base URL
+          </label>
+          <input
+            id="llm-base-url"
+            type="text"
+            className="input input-bordered w-full font-mono text-sm"
+            value={config.llm.baseUrl || ''}
+            placeholder="e.g. http://localhost:11434/v1"
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                llm: { ...config.llm, baseUrl: e.target.value },
+              })
+            }
+          />
+        </>
+      )}
+
+      {/* API Key */}
+      <label className="font-bold text-gray-300" htmlFor="llm-api-key">
+        API Key
+      </label>
+      <input
+        id="llm-api-key"
+        type="password"
+        className="input input-bordered w-full font-mono text-sm"
+        value={config.llm.apiKey}
+        placeholder={config.llm.provider === 'groq' ? 'gsk_...' : 'sk-...'}
+        onChange={(e) =>
+          setConfig({
+            ...config,
+            llm: { ...config.llm, apiKey: e.target.value },
+          })
+        }
+      />
+
+      {/* Model */}
+      <label className="font-bold text-gray-300" htmlFor="llm-model">
+        Model
+      </label>
+      {config.llm.provider === 'groq' ? (
+        <div className="flex gap-2">
+          <select
+            id="llm-model"
+            className="select select-bordered w-full"
+            value={config.llm.model}
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                llm: { ...config.llm, model: e.target.value },
+              })
+            }
+          >
+            {getGroqOptions().map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={handleFetchGroqModels}
+            disabled={isLoading || !config.llm.apiKey}
+            title="Update Model List"
+          >
+            ↻
+          </button>
+        </div>
+      ) : (
+        <input
+          id="llm-model"
+          type="text"
+          className="input input-bordered w-full font-mono text-sm"
+          value={config.llm.model}
+          placeholder="e.g. gpt-4o, qwen2.5"
+          onChange={(e) =>
+            setConfig({
+              ...config,
+              llm: { ...config.llm, model: e.target.value },
+            })
+          }
+        />
+      )}
+    </div>
+  );
+
+  const renderVADTab = () => (
+    <div className="py-4 grid grid-cols-[140px_1fr] gap-4 items-center">
+      <div className="col-span-2 text-lg font-bold text-gray-300 mb-2">VAD Settings</div>
 
       <label className="font-bold text-gray-300" htmlFor="vad-silence">
         Silence (ms)
@@ -581,146 +721,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         />
         <span className="w-12 text-center font-mono">{config.vad?.volumeThreshold || 0}%</span>
       </div>
-      <div className="col-span-2 text-xs text-gray-500 mb-2">
-        Ignores low volume levels. 0% to disable. ~15% filters out background noise
+      <div className="col-span-2 text-xs text-gray-500">
+        Ignores low volume levels. 0% to disable. ~15% filters out background noise.
       </div>
-
-      <div className="col-span-2 divider text-gray-500">LLM API Settings</div>
-
-      {/* Provider Selection */}
-      <label className="font-bold text-gray-300" htmlFor="llm-provider">
-        Provider
-      </label>
-      <select
-        id="llm-provider"
-        className="select select-bordered w-full"
-        value={config.llm.provider}
-        onChange={(e) =>
-          setConfig({
-            ...config,
-            llm: {
-              ...config.llm,
-              provider: e.target.value as 'groq' | 'openai',
-            },
-          })
-        }
-      >
-        <option value="groq">Groq (Recommended)</option>
-        <option value="openai">OpenAI Compatible (Ollama/LM Studio)</option>
-      </select>
-
-      {/* Base URL (Only for OpenAI Compatible) */}
-      {config.llm.provider === 'openai' && (
-        <>
-          <label className="font-bold text-gray-300" htmlFor="llm-base-url">
-            Base URL
-          </label>
-          <input
-            id="llm-base-url"
-            type="text"
-            className="input input-bordered w-full font-mono text-sm"
-            value={config.llm.baseUrl || ''}
-            placeholder="e.g. http://localhost:11434/v1"
-            onChange={(e) =>
-              setConfig({
-                ...config,
-                llm: { ...config.llm, baseUrl: e.target.value },
-              })
-            }
-          />
-        </>
-      )}
-
-      {/* API Key */}
-      <label className="font-bold text-gray-300" htmlFor="llm-api-key">
-        API Key
-      </label>
-      <input
-        id="llm-api-key"
-        type="password"
-        className="input input-bordered w-full font-mono text-sm"
-        value={config.llm.apiKey}
-        placeholder={config.llm.provider === 'groq' ? 'gsk_...' : 'sk-...'}
-        onChange={(e) =>
-          setConfig({
-            ...config,
-            llm: { ...config.llm, apiKey: e.target.value },
-          })
-        }
-      />
-
-      {/* Model Selection */}
-      <label className="font-bold text-gray-300" htmlFor="llm-model">
-        Model
-      </label>
-      {config.llm.provider === 'groq' ? (
-        <div className="flex gap-2">
-          <select
-            id="llm-model"
-            className="select select-bordered w-full"
-            value={config.llm.model}
-            onChange={(e) =>
-              setConfig({
-                ...config,
-                llm: { ...config.llm, model: e.target.value },
-              })
-            }
-          >
-            {getGroqOptions().map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <button
-            className="btn btn-sm btn-secondary"
-            onClick={handleFetchGroqModels}
-            disabled={isLoading || !config.llm.apiKey}
-            title="Update Model List"
-          >
-            ↻
-          </button>
-        </div>
-      ) : (
-        <input
-          id="llm-model"
-          type="text"
-          className="input input-bordered w-full font-mono text-sm"
-          value={config.llm.model}
-          placeholder="e.g. gpt-4o, qwen2.5"
-          onChange={(e) =>
-            setConfig({
-              ...config,
-              llm: { ...config.llm, model: e.target.value },
-            })
-          }
-        />
-      )}
-
-      <label className="font-bold text-gray-300" htmlFor="app-mic">
-        Microphone
-      </label>
-      <select
-        id="app-mic"
-        className="select select-bordered w-full"
-        title="Microphone"
-        value={config.app?.defaultMicName || ''}
-        onChange={(e) =>
-          setConfig({
-            ...config,
-            app: { ...config.app, defaultMicName: e.target.value },
-          })
-        }
-      >
-        <option value="" disabled>
-          Select Microphone
-        </option>
-        {allMics.map((mic) => (
-          <option key={mic.deviceId} value={mic.label}>
-            {mic.label}
-          </option>
-        ))}
-      </select>
     </div>
   );
 
@@ -737,7 +740,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           >
             General
           </a>
-
+          <a
+            role="tab"
+            className={`tab ${activeTab === 'whisper' ? 'tab-active' : ''}`}
+            onClick={() => setActiveTab('whisper')}
+          >
+            Whisper
+          </a>
+          <a
+            role="tab"
+            className={`tab ${activeTab === 'llm' ? 'tab-active' : ''}`}
+            onClick={() => setActiveTab('llm')}
+          >
+            LLM
+          </a>
+          <a
+            role="tab"
+            className={`tab ${activeTab === 'vad' ? 'tab-active' : ''}`}
+            onClick={() => setActiveTab('vad')}
+          >
+            VAD
+          </a>
           <a
             role="tab"
             className={`tab ${activeTab === 'glossary' ? 'tab-active' : ''}`}
@@ -748,6 +771,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {activeTab === 'general' && renderGeneralTab()}
+        {activeTab === 'whisper' && renderWhisperTab()}
+        {activeTab === 'llm' && renderLLMTab()}
+        {activeTab === 'vad' && renderVADTab()}
         {activeTab === 'glossary' && (
           <GlossarySettings
             entries={config.glossary || []}
