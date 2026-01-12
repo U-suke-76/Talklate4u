@@ -76,8 +76,13 @@ export class MenuManager {
           { role: 'minimize' },
           { role: 'zoom' },
           ...(isMac
-            ? [{ type: 'separator' }, { role: 'front' }, { type: 'separator' }, { role: 'window' }]
-            : [{ role: 'close' }]),
+            ? ([
+                { type: 'separator' },
+                { role: 'front' },
+                { type: 'separator' },
+                { role: 'window' },
+              ] as MenuItemConstructorOptions[])
+            : ([{ role: 'close' }] as MenuItemConstructorOptions[])),
         ],
       },
       // Help Menu
