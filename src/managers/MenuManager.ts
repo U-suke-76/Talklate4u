@@ -87,7 +87,7 @@ export class MenuManager {
           {
             label: 'Learn More',
             click: async () => {
-              await shell.openExternal('https://github.com/'); // Replace with actual repo if known, or generic
+              await shell.openExternal('https://github.com/U-suke-76/Talklate4u');
             },
           },
         ],
