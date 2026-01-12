@@ -15,49 +15,47 @@ export default defineConfig({
       targets: [
         {
           src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
-          dest: '.'
+          dest: '.',
         },
         {
           src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs',
-          dest: '.'
+          dest: '.',
         },
         {
           src: 'node_modules/onnxruntime-web/dist/ort.all.min.js',
-          dest: '.'
+          dest: '.',
         },
         {
           src: 'node_modules/@ricky0123/vad-web/dist/silero_vad_v5.onnx',
-          dest: '.'
+          dest: '.',
         },
         {
           src: 'node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js',
-          dest: '.'
+          dest: '.',
         },
         {
           src: 'node_modules/@ricky0123/vad-web/dist/bundle.min.js',
           dest: '.',
-          rename: 'vad.bundle.min.js'
-        }
-      ]
-    })
+          rename: 'vad.bundle.min.js',
+        },
+      ],
+    }),
   ],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
       'onnxruntime-web': resolve(__dirname, 'src/shims/ort.ts'),
       '@ricky0123/vad-web': resolve(__dirname, 'src/shims/vad.ts'),
-    }
+    },
   },
   build: {
     sourcemap: false,
     minify: true,
-    rollupOptions: {
-      
-    }
+    rollupOptions: {},
   },
   server: {
     fs: {
-      allow: ['..']
-    }
-  }
+      allow: ['..'],
+    },
+  },
 });

@@ -9,19 +9,19 @@ export default defineConfig({
       targets: [
         {
           src: 'src/overlay',
-          dest: '.'
-        }
-      ]
-    })
+          dest: '.',
+        },
+      ],
+    }),
   ],
   build: {
     lib: {
       entry: 'src/main.ts',
       formats: ['es'],
-      fileName: 'main'
+      fileName: 'main',
     },
     commonjsOptions: {
-      ignoreDynamicRequires: true
+      ignoreDynamicRequires: true,
     },
     rollupOptions: {
       external: [
@@ -31,7 +31,7 @@ export default defineConfig({
         'bufferutil',
         'utf-8-validate',
         'express',
-        'socket.io'
+        'socket.io',
       ],
       output: {
         format: 'es',
@@ -44,10 +44,10 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-`
-      }
+`,
+      },
     },
     minify: true,
-    sourcemap: false
-  }
+    sourcemap: false,
+  },
 });

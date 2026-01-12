@@ -17,7 +17,6 @@
 
 2. **초기 설정 (음성 인식 및 번역 설정)**
    번역 기능을 이용하려면, 화면 우측 상단의 「Settings」 버튼, 또는 메뉴바의 **File > Settings** 에서 설정을 수행합니다.
-
    - **음성 인식 (Whisper)**
      - **Provider**: `Local` (기본값), `Groq`, `OpenAI` 중에서 선택할 수 있습니다.
      - **Groq/OpenAI**: API Key 설정이 필요합니다. 클라우드 ASR을 사용하면 PC에 부담을 주지 않고 `large-v3-turbo` 모델을 통한 고정밀 인식이 가능합니다.
@@ -58,7 +57,7 @@
 1. **모델 다운로드**
    아래 링크에서, 사용하고 싶은 모델의 OpenVINO 버전 (`.xml` 과 `.bin` 세트) 을 다운로드해 주세요.
    - [Hugging Face: Intel/whisper.cpp-openvino-models](https://huggingface.co/Intel/whisper.cpp-openvino-models/tree/main)
-   - *권장*: `ggml-small-models.zip`
+   - _권장_: `ggml-small-models.zip`
 
 2. **모델 배치**
    압축을 풀고 나온 파일 (`.xml`, `.bin`) 을 앱의 모델 폴더에 복사합니다.
@@ -109,7 +108,7 @@ NVIDIA GPU를 탑재하고 있는 경우, CUDA 버전의 `whisper-server.exe` �
 - **Visual Studio Build Tools 2022 (또는 2026)**
   - 워크로드: "Desktop development with C++" (C++를 사용한 데스크톱 개발)
 - **OpenVINO Toolkit**: 2025.0 이후
-  - *참고: Intel OpenVINO (GPU/NPU) 를 사용하는 경우, 추가 설정이 필요합니다. 자세한 내용은 [docs/openvino.md](docs/openvino.md) 를 참조하세요.*
+  - _참고: Intel OpenVINO (GPU/NPU) 를 사용하는 경우, 추가 설정이 필요합니다. 자세한 내용은 [docs/openvino.md](docs/openvino.md) 를 참조하세요._
 - **CMake**: 3.20 이상
 - **Ninja**: 빌드 시스템 (권장)
 
@@ -133,6 +132,7 @@ npm install
 
 2. **OpenVINO 환경 변수 설정 (옵션)**
    `setupvars.bat` 를 실행합니다.
+
    ```cmd
    "C:\Program Files (x86)\Intel\openvino_2025...\setupvars.bat"
    ```
@@ -143,7 +143,7 @@ npm install
 
    ```cmd
    cd node_modules/nodejs-whisper/cpp/whisper.cpp
-   
+
    rmdir /s /q build
    cmake -B build -G "Ninja" -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=Release -DWHISPER_BUILD_SERVER=ON
    cmake --build build
@@ -153,14 +153,14 @@ npm install
 
 4. **DLL 배치**
    빌드 결과물 (`build/bin`) 에 필요한 DLL을 모읍니다. 이를 수행하지 않으면 실행 시 `DllNotFound` 에러가 발생합니다.
-   
+
    ```cmd
    # 결과물 디렉토리로 이동
    cd build/bin
-   
+
    # OpenVINO 런타임 및 플러그인 복사
    copy "C:\Program Files (x86)\Intel\openvino_...\runtime\bin\intel64\Release\*.dll" .
-   
+
    # TBB (Threading Building Blocks) 복사
    copy "C:\Program Files (x86)\Intel\openvino_...\runtime\3rdparty\tbb\bin\*.dll" .
    ```

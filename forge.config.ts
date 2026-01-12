@@ -30,20 +30,20 @@ const config: ForgeConfig = {
           const files = fs.readdirSync(localesPath);
           for (const file of files) {
             if (file.endsWith('.pak')) {
-               // Keep en-US, ja, and ko
-               if (file !== 'en-US.pak' && file !== 'ja.pak' && file !== 'ko.pak') {
-                 try {
-                   fs.unlinkSync(path.join(localesPath, file));
-                 } catch (e) {
-                   console.error(`Failed to delete locale: ${file}`, e);
-                 }
-               }
+              // Keep en-US, ja, and ko
+              if (file !== 'en-US.pak' && file !== 'ja.pak' && file !== 'ko.pak') {
+                try {
+                  fs.unlinkSync(path.join(localesPath, file));
+                } catch (e) {
+                  console.error(`Failed to delete locale: ${file}`, e);
+                }
+              }
             }
           }
         }
         callback();
-      }
-    ]
+      },
+    ],
   },
   rebuildConfig: {},
   makers: [
@@ -61,11 +61,11 @@ const config: ForgeConfig = {
     new PublisherGithub({
       repository: {
         owner: 'U-suke-76',
-        name: 'Talklate4u'
+        name: 'Talklate4u',
       },
       prerelease: false,
-      draft: true
-    })
+      draft: true,
+    }),
   ],
   plugins: [
     new VitePlugin({
@@ -111,15 +111,23 @@ const config: ForgeConfig = {
 
       for (const outputPath of outputPaths) {
         // Copy all DLLs from whisper.cpp build/bin to resources
-        const whisperBinDir = path.join(process.cwd(), 'node_modules', 'nodejs-whisper', 'cpp', 'whisper.cpp', 'build', 'bin');
+        const whisperBinDir = path.join(
+          process.cwd(),
+          'node_modules',
+          'nodejs-whisper',
+          'cpp',
+          'whisper.cpp',
+          'build',
+          'bin',
+        );
         const resourcesDir = path.join(outputPath, 'resources');
-        
+
         console.log('Copying DLLs to:', resourcesDir);
-        
+
         if (fs.existsSync(whisperBinDir)) {
           const files = fs.readdirSync(whisperBinDir);
           const dllFiles = files.filter((f: string) => f.endsWith('.dll'));
-          
+
           for (const dll of dllFiles) {
             const src = path.join(whisperBinDir, dll);
             const dest = path.join(resourcesDir, dll);
@@ -144,7 +152,7 @@ const config: ForgeConfig = {
             console.log('Installing production dependencies...');
             execSync('npm install --omit=dev --no-bin-links --ignore-scripts', {
               cwd: resourcesApp,
-              stdio: 'inherit'
+              stdio: 'inherit',
             });
             console.log(`Dependencies installed in ${resourcesApp}`);
           } catch (error) {
@@ -154,8 +162,8 @@ const config: ForgeConfig = {
           console.log(`No package.json found in ${resourcesApp}, skipping install.`);
         }
       }
-    }
-  }
+    },
+  },
 };
 
 export default config;

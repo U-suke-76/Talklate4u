@@ -46,10 +46,7 @@ log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
 
 // Object.assign(console, log.functions);
 Object.assign(console, log.functions);
-console.log(
-  'Logging initialized. Saving to:',
-  path.join(LOGS_DIR, LOG_FILE_NAME)
-);
+console.log('Logging initialized. Saving to:', path.join(LOGS_DIR, LOG_FILE_NAME));
 console.log('[Main] process.argv:', process.argv);
 
 // Initialize Managers
@@ -80,9 +77,7 @@ const createWindow = () => {
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
-    mainWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
-    );
+    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
   }
 };
 
@@ -91,9 +86,7 @@ app.on('ready', () => {
 
   // Start Services
   // Start Services
-  whisperManager
-    .start()
-    .catch((err) => console.error('Failed to start Whisper on launch:', err));
+  whisperManager.start().catch((err) => console.error('Failed to start Whisper on launch:', err));
 
   // Hook Whisper Progress
   whisperManager.on('download-progress', (progress: string) => {
@@ -159,8 +152,7 @@ ipcMain.handle('check-whisper-status', async () => {
   // Check LLM Config
   const { provider, apiKey, baseUrl } = config.llm;
   if (provider === 'groq' && !apiKey) missing.push('Groq API Key');
-  if (provider === 'openai' && !baseUrl && !apiKey)
-    missing.push('OpenAI API Key'); // Assume official needs key
+  if (provider === 'openai' && !baseUrl && !apiKey) missing.push('OpenAI API Key'); // Assume official needs key
 
   return {
     success: isRunning,
@@ -216,12 +208,9 @@ ipcMain.handle('transcribe-audio', async (e, buffer: ArrayBuffer) => {
 });
 
 // Translate
-ipcMain.handle(
-  'translate-text',
-  async (e, text: string, detectedLanguage?: string) => {
-    return await translationService.translate(text, detectedLanguage);
-  }
-);
+ipcMain.handle('translate-text', async (e, text: string, detectedLanguage?: string) => {
+  return await translationService.translate(text, detectedLanguage);
+});
 
 // Get Groq Models
 ipcMain.handle('get-groq-models', async (e, apiKey: string) => {

@@ -1,15 +1,15 @@
-import React, { useEffect, useState, useRef } from "react";
-import { useVAD } from "./hooks/useVAD";
-import { SettingsModal } from "./components/SettingsModal";
-import { useServerStatus } from "./hooks/useServerStatus";
-import { useSpeechTranslation } from "./hooks/useSpeechTranslation";
-import { LogViewer } from "./components/LogViewer";
-import { useMicrophone } from "./hooks/useMicrophone";
-import { cn } from "./utils/cn";
+import React, { useEffect, useState, useRef } from 'react';
+import { useVAD } from './hooks/useVAD';
+import { SettingsModal } from './components/SettingsModal';
+import { useServerStatus } from './hooks/useServerStatus';
+import { useSpeechTranslation } from './hooks/useSpeechTranslation';
+import { LogViewer } from './components/LogViewer';
+import { useMicrophone } from './hooks/useMicrophone';
+import { cn } from './utils/cn';
 
 const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
-  const [statusText, setStatusText] = useState("Initializing...");
+  const [statusText, setStatusText] = useState('Initializing...');
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -22,22 +22,21 @@ const App: React.FC = () => {
   const scrollToBottom = React.useCallback(() => {
     setTimeout(() => {
       if (logsContainerRef.current) {
-        logsContainerRef.current.scrollTop =
-          logsContainerRef.current.scrollHeight;
+        logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight;
       }
     }, 100);
   }, []);
 
   const { logs, addSystemLog, handleSpeechEnd } = useSpeechTranslation(
     setStatusText,
-    scrollToBottom
+    scrollToBottom,
   );
 
   const { serverStatus, overlayStatus, checkServer } = useServerStatus(
     isListeningRef,
     addSystemLog,
     setStatusText,
-    statusText
+    statusText,
   );
 
   // --- Handlers ---
@@ -77,7 +76,7 @@ const App: React.FC = () => {
   }, [isListening]);
 
   const startRecording = async () => {
-    setStatusText("Starting VAD...");
+    setStatusText('Starting VAD...');
     try {
       const currentConfig = (await window.electronAPI.loadConfig()) as {
         app?: { defaultMicName?: string };
@@ -94,26 +93,22 @@ const App: React.FC = () => {
       const mics = await loadMicrophones();
       const targetMic = await selectMicrophone(micLabel, mics);
 
-      const micId = targetMic ? targetMic.deviceId : "default";
+      const micId = targetMic ? targetMic.deviceId : 'default';
 
       const vadOptions = {
         silenceDurationMs: currentConfig?.vad?.silenceDurationMs || 500,
-        positiveSpeechThreshold:
-          currentConfig?.vad?.positiveSpeechThreshold || 0.5,
-        negativeSpeechThreshold:
-          currentConfig?.vad?.negativeSpeechThreshold || 0.35,
+        positiveSpeechThreshold: currentConfig?.vad?.positiveSpeechThreshold || 0.5,
+        negativeSpeechThreshold: currentConfig?.vad?.negativeSpeechThreshold || 0.35,
         minSpeechMs: currentConfig?.vad?.minSpeechMs || 250,
         volumeThreshold: currentConfig?.vad?.volumeThreshold || 0,
       };
 
       await startVAD(micId, vadOptions, handleSpeechEnd);
-      setStatusText(`Listening (${targetMic ? "Custom" : "Default"})...`);
+      setStatusText(`Listening (${targetMic ? 'Custom' : 'Default'})...`);
     } catch (e) {
       console.error(e);
-      const errMsg = `Error starting VAD: ${
-        e instanceof Error ? e.message : String(e)
-      }`;
-      setStatusText("Error starting VAD");
+      const errMsg = `Error starting VAD: ${e instanceof Error ? e.message : String(e)}`;
+      setStatusText('Error starting VAD');
       addSystemLog(errMsg);
       window.electronAPI.log(errMsg);
     }
@@ -122,7 +117,7 @@ const App: React.FC = () => {
   const toggleRecording = async () => {
     if (isListening) {
       await stopVAD();
-      setStatusText("Stopped");
+      setStatusText('Stopped');
       setActiveMic(null);
     } else {
       await startRecording();
@@ -132,7 +127,7 @@ const App: React.FC = () => {
   const handleSettingsSaved = async () => {
     await checkServer();
     if (isListeningRef.current) {
-      addSystemLog("Settings saved. Restarting VAD to apply changes...");
+      addSystemLog('Settings saved. Restarting VAD to apply changes...');
       // Stop current VAD
       await stopVAD();
       // Wait a bit to ensure clean stop? Usually not needed if await works.
@@ -149,31 +144,23 @@ const App: React.FC = () => {
             Talklate4u
           </h1>
           <span
-            className={cn(
-              "badge badge-outline",
-              serverStatus ? "badge-success" : "badge-error"
-            )}
+            className={cn('badge badge-outline', serverStatus ? 'badge-success' : 'badge-error')}
           >
-            {serverStatus ? "Whisper Ready" : "Whisper Offline"}
+            {serverStatus ? 'Whisper Ready' : 'Whisper Offline'}
           </span>
           <span
             className={cn(
-              "badge badge-outline",
-              overlayStatus?.success ? "badge-success" : "badge-error"
+              'badge badge-outline',
+              overlayStatus?.success ? 'badge-success' : 'badge-error',
             )}
             title={
-              overlayStatus?.success
-                ? `Port: ${overlayStatus.port}`
-                : "Overlay Server not running"
+              overlayStatus?.success ? `Port: ${overlayStatus.port}` : 'Overlay Server not running'
             }
           >
-            {overlayStatus?.success ? "Overlay Ready" : "Overlay Offline"}
+            {overlayStatus?.success ? 'Overlay Ready' : 'Overlay Offline'}
           </span>
         </div>
-        <button
-          className="btn btn-sm btn-ghost"
-          onClick={() => setShowSettings(true)}
-        >
+        <button className="btn btn-sm btn-ghost" onClick={() => setShowSettings(true)}>
           ⚙️ Settings
         </button>
       </header>
@@ -186,36 +173,26 @@ const App: React.FC = () => {
             <span>
               Microphone Input
               {activeMic?.label && (
-                <span className="text-secondary font-normal ml-2">
-                  ({activeMic.label})
-                </span>
+                <span className="text-secondary font-normal ml-2">({activeMic.label})</span>
               )}
             </span>
             <span>{Math.round(volume * 500)}%</span>
           </div>
           <div className="w-full h-2 bg-gray-700 rounded overflow-hidden">
-            <div
-              ref={volumeRef}
-              className="h-full bg-green-500 transition-all duration-75"
-            ></div>
+            <div ref={volumeRef} className="h-full bg-green-500 transition-all duration-75"></div>
           </div>
 
           <div className="flex gap-4 items-center">
             <button
-              className={cn(
-                "btn flex-1",
-                isListening ? "btn-error" : "btn-primary"
-              )}
+              className={cn('btn flex-1', isListening ? 'btn-error' : 'btn-primary')}
               onClick={toggleRecording}
               disabled={!serverStatus}
             >
-              {isListening ? "Stop Recording" : "Start Recording"}
+              {isListening ? 'Stop Recording' : 'Start Recording'}
             </button>
           </div>
 
-          <div className="text-xs text-center text-gray-500">
-            Status: {statusText}
-          </div>
+          <div className="text-xs text-center text-gray-500">Status: {statusText}</div>
         </div>
       </main>
 
@@ -227,13 +204,10 @@ const App: React.FC = () => {
       />
 
       {/* Download Progress Modal */}
-      {(statusText.startsWith("Downloading") ||
-        statusText.includes("Starting download")) && (
+      {(statusText.startsWith('Downloading') || statusText.includes('Starting download')) && (
         <div className="fixed inset-0 bg-black/80 z-1000 flex items-center justify-center p-4">
           <div className="bg-gray-800 p-6 rounded-xl max-w-md w-full shadow-2xl border border-gray-700 animate-fade-in-up">
-            <h3 className="text-xl font-bold mb-4 text-primary">
-              System Update
-            </h3>
+            <h3 className="text-xl font-bold mb-4 text-primary">System Update</h3>
             <p className="text-gray-300 mb-6 text-center">{statusText}</p>
 
             <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden relative">

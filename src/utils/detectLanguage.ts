@@ -44,7 +44,7 @@ export function detectLanguage(text: string): string {
   }
 
   const iso639_3 = franc(text, { minLength: 3 });
-  
+
   if (iso639_3 === 'und') {
     return 'und';
   }
@@ -60,7 +60,7 @@ export function detectLanguage(text: string): string {
  */
 export function resolveLanguage(text: string): string {
   const textLang = detectLanguage(text);
-  
+
   // テキストから言語を検出できなかった場合
   if (textLang === 'und') {
     return 'und';
