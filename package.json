@@ -1,7 +1,7 @@
 {
   "name": "talklate4u",
   "productName": "Talklate4u",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Real-time speech recognition and translation app with OBS overlay support",
   "main": ".vite/build/main.js",
   "type": "module",
