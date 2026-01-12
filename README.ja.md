@@ -17,7 +17,6 @@
 
 2. **初期設定 (音声認識・翻訳設定)**
    翻訳機能を利用するには、画面右上の「Settings」ボタン、またはメニューバーの **File > Settings** から設定を行います。
-
    - **音声認識 (Whisper)**
      - **Provider**: `Local` (デフォルト)、`Groq`、`OpenAI` から選択できます。
      - **Groq/OpenAI**: API Keyの設定が必要です。クラウドASRを使用することで、PCに負荷をかけずに `large-v3-turbo` モデルによる高精度な認識が可能です。
@@ -58,7 +57,7 @@
 1. **モデルのダウンロード**
    以下のリンクから、使用したいモデルの OpenVINO 版 (`.xml` と `.bin` のセット) をダウンロードしてください。
    - [Hugging Face: Intel/whisper.cpp-openvino-models](https://huggingface.co/Intel/whisper.cpp-openvino-models/tree/main)
-   - *推奨*: `ggml-small-models.zip`
+   - _推奨_: `ggml-small-models.zip`
 
 2. **モデルの配置**
    解凍して出てきたファイル (`.xml`, `.bin`) を、アプリのモデルフォルダにコピーします。
@@ -109,7 +108,7 @@ NVIDIA製 GPU を搭載している場合、CUDA版の `whisper-server.exe` を�
 - **Visual Studio Build Tools 2022 (または 2026)**
   - ワークロード: "Desktop development with C++" (C++ によるデスクトップ開発)
 - **OpenVINO Toolkit**: 2025.0 以降
-  - *Note: Intel OpenVINO (GPU/NPU) を使用する場合は、追加のセットアップが必要です。詳細は [docs/openvino.md](docs/openvino.md) を参照してください。*
+  - _Note: Intel OpenVINO (GPU/NPU) を使用する場合は、追加のセットアップが必要です。詳細は [docs/openvino.md](docs/openvino.md) を参照してください。_
 - **CMake**: 3.20 以上
 - **Ninja**: ビルドシステム (推奨)
 
@@ -133,6 +132,7 @@ npm install
 
 2. **OpenVINO 環境変数の設定（オプション）**
    `setupvars.bat` を実行します。
+
    ```cmd
    "C:\Program Files (x86)\Intel\openvino_2025...\setupvars.bat"
    ```
@@ -143,24 +143,24 @@ npm install
 
    ```cmd
    cd node_modules/nodejs-whisper/cpp/whisper.cpp
-   
+
    rmdir /s /q build
    cmake -B build -G "Ninja" -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=Release -DWHISPER_BUILD_SERVER=ON
    cmake --build build
    ```
 
- OpenVINOを含む場合は"-DWHISPER_OPENVINO=1"を追加してください
+OpenVINOを含む場合は"-DWHISPER_OPENVINO=1"を追加してください
 
 4. **DLL の配置**
    ビルド成果物 (`build/bin`) に必要な DLL を集めます。これを行わないと実行時に `DllNotFound` エラーになります。
-   
+
    ```cmd
    # 成果物ディレクトリへ移動
    cd build/bin
-   
+
    # OpenVINO ランタイムとプラグインのコピー
    copy "C:\Program Files (x86)\Intel\openvino_...\runtime\bin\intel64\Release\*.dll" .
-   
+
    # TBB (Threading Building Blocks) のコピー
    copy "C:\Program Files (x86)\Intel\openvino_...\runtime\3rdparty\tbb\bin\*.dll" .
    ```

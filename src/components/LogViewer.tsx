@@ -1,5 +1,5 @@
-import React from "react";
-import { LogItem } from "../hooks/useSpeechTranslation";
+import React from 'react';
+import { LogItem } from '../hooks/useSpeechTranslation';
 
 interface LogViewerProps {
   logs: LogItem[];
@@ -13,16 +13,11 @@ export const LogViewer: React.FC<LogViewerProps> = ({ logs, containerRef }) => {
       ref={containerRef}
     >
       {logs.length === 0 && (
-        <div className="text-center text-gray-500 mt-10">
-          Waiting for audio...
-        </div>
+        <div className="text-center text-gray-500 mt-10">Waiting for audio...</div>
       )}
       {logs.map((log) => (
-        <div
-          key={log.id}
-          className="mb-2 border-b border-gray-700 pb-2 last:border-0"
-        >
-          {log.type === "system" ? (
+        <div key={log.id} className="mb-2 border-b border-gray-700 pb-2 last:border-0">
+          {log.type === 'system' ? (
             <div className="text-gray-400">
               <span className="mr-2">[{log.time}]</span>
               <span>[SYSTEM] {log.original}</span>
@@ -39,7 +34,7 @@ export const LogViewer: React.FC<LogViewerProps> = ({ logs, containerRef }) => {
               {log.translated && (
                 <div className="flex items-baseline text-white">
                   <span className="text-gray-600 mr-2 min-w-[120px]">
-                    [{log.transTime || "..."}] #{log.id}
+                    [{log.transTime || '...'}] #{log.id}
                   </span>
                   <span className="font-bold text-secondary mr-2">DST:</span>
                   <span>{log.translated}</span>

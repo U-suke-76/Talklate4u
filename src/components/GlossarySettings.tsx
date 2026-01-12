@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState } from 'react';
 
 export interface GlossaryEntry {
   id: string;
@@ -14,15 +14,12 @@ interface GlossarySettingsProps {
   onChange: (entries: GlossaryEntry[]) => void;
 }
 
-export const GlossarySettings: React.FC<GlossarySettingsProps> = ({
-  entries,
-  onChange,
-}) => {
-  const [newEntry, setNewEntry] = useState<Omit<GlossaryEntry, "id">>({
-    sourceText: "",
-    sourceLang: "en",
-    targetText: "",
-    targetLang: "ja",
+export const GlossarySettings: React.FC<GlossarySettingsProps> = ({ entries, onChange }) => {
+  const [newEntry, setNewEntry] = useState<Omit<GlossaryEntry, 'id'>>({
+    sourceText: '',
+    sourceLang: 'en',
+    targetText: '',
+    targetLang: 'ja',
     bidirectional: true, // Default to true as requested
   });
 
@@ -35,7 +32,7 @@ export const GlossarySettings: React.FC<GlossarySettingsProps> = ({
     };
 
     onChange([...entries, entry]);
-    setNewEntry({ ...newEntry, sourceText: "", targetText: "" }); // Reset text fields but keep langs
+    setNewEntry({ ...newEntry, sourceText: '', targetText: '' }); // Reset text fields but keep langs
   };
 
   const handleDelete = (id: string) => {
@@ -48,12 +45,10 @@ export const GlossarySettings: React.FC<GlossarySettingsProps> = ({
 
   return (
     <div className="p-4 space-y-4">
-      <h4 className="text-md font-bold text-gray-300">
-        Gaming Glossary / Dictionary
-      </h4>
+      <h4 className="text-md font-bold text-gray-300">Gaming Glossary / Dictionary</h4>
       <p className="text-sm text-gray-500">
-        Define custom translations for game terms. Use <b>Bi-directional (⇔)</b>{" "}
-        to apply the rule in both translation directions.
+        Define custom translations for game terms. Use <b>Bi-directional (⇔)</b> to apply the rule
+        in both translation directions.
       </p>
 
       {/* Add New Entry Form */}
@@ -65,9 +60,7 @@ export const GlossarySettings: React.FC<GlossarySettingsProps> = ({
             title="Source Language"
             className="select select-bordered select-sm w-full"
             value={newEntry.sourceLang}
-            onChange={(e) =>
-              setNewEntry({ ...newEntry, sourceLang: e.target.value })
-            }
+            onChange={(e) => setNewEntry({ ...newEntry, sourceLang: e.target.value })}
           >
             <option value="en">EN</option>
             <option value="ja">JP</option>
@@ -75,17 +68,13 @@ export const GlossarySettings: React.FC<GlossarySettingsProps> = ({
           </select>
         </div>
         <div>
-          <label className="text-xs text-gray-400 block mb-1">
-            Source Text
-          </label>
+          <label className="text-xs text-gray-400 block mb-1">Source Text</label>
           <input
             title="Source Term"
             type="text"
             className="input input-bordered input-sm w-full"
             value={newEntry.sourceText}
-            onChange={(e) =>
-              setNewEntry({ ...newEntry, sourceText: e.target.value })
-            }
+            onChange={(e) => setNewEntry({ ...newEntry, sourceText: e.target.value })}
             placeholder="Ex: Ult"
           />
         </div>
@@ -94,28 +83,22 @@ export const GlossarySettings: React.FC<GlossarySettingsProps> = ({
         <div className="flex justify-center pb-1">
           <button
             className="btn btn-xs btn-ghost text-lg tooltip tooltip-bottom"
-            data-tip={
-              newEntry.bidirectional ? "Apply Both Ways" : "One Way Only"
-            }
+            data-tip={newEntry.bidirectional ? 'Apply Both Ways' : 'One Way Only'}
             onClick={toggleDirection}
-            title={newEntry.bidirectional ? "Bi-directional" : "One-way"}
+            title={newEntry.bidirectional ? 'Bi-directional' : 'One-way'}
           >
-            {newEntry.bidirectional ? "⇔" : "➜"}
+            {newEntry.bidirectional ? '⇔' : '➜'}
           </button>
         </div>
 
         <div>
-          <label className="text-xs text-gray-400 block mb-1">
-            Target Text
-          </label>
+          <label className="text-xs text-gray-400 block mb-1">Target Text</label>
           <input
             title="Translated Term"
             type="text"
             className="input input-bordered input-sm w-full"
             value={newEntry.targetText}
-            onChange={(e) =>
-              setNewEntry({ ...newEntry, targetText: e.target.value })
-            }
+            onChange={(e) => setNewEntry({ ...newEntry, targetText: e.target.value })}
             placeholder="Ex: アルティメット"
           />
         </div>
@@ -125,9 +108,7 @@ export const GlossarySettings: React.FC<GlossarySettingsProps> = ({
             title="Target Language"
             className="select select-bordered select-sm w-full"
             value={newEntry.targetLang}
-            onChange={(e) =>
-              setNewEntry({ ...newEntry, targetLang: e.target.value })
-            }
+            onChange={(e) => setNewEntry({ ...newEntry, targetLang: e.target.value })}
           >
             <option value="ja">JP</option>
             <option value="en">EN</option>
@@ -139,9 +120,7 @@ export const GlossarySettings: React.FC<GlossarySettingsProps> = ({
           <button
             className="btn btn-sm btn-primary"
             onClick={handleAdd}
-            disabled={
-              !newEntry.sourceText.trim() || !newEntry.targetText.trim()
-            }
+            disabled={!newEntry.sourceText.trim() || !newEntry.targetText.trim()}
           >
             Add
           </button>
@@ -172,13 +151,11 @@ export const GlossarySettings: React.FC<GlossarySettingsProps> = ({
               <tr key={entry.id} className="hover:bg-gray-800">
                 <td className="font-mono text-xs text-gray-400">
                   {entry.sourceLang.toUpperCase()}
-                  {entry.bidirectional ? "⇔" : "➜"}
+                  {entry.bidirectional ? '⇔' : '➜'}
                   {entry.targetLang.toUpperCase()}
                 </td>
                 <td className="font-bold">{entry.sourceText}</td>
-                <td className="text-center text-gray-500">
-                  {entry.bidirectional ? "⇔" : "➜"}
-                </td>
+                <td className="text-center text-gray-500">{entry.bidirectional ? '⇔' : '➜'}</td>
                 <td className="text-blue-300">{entry.targetText}</td>
                 <td>
                   <button

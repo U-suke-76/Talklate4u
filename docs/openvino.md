@@ -4,7 +4,9 @@
 Intel GPU / NPU を使用して音声認識を高速化したい場合は、以下の手順で手動セットアップを行ってください。
 
 ## 必要なファイル
+
 以下のファイル（約 90MB〜）が必要です。
+
 - `openvino.dll`
 - `openvino_intel_cpu_plugin.dll`
 - `openvino_intel_gpu_plugin.dll`
@@ -23,10 +25,12 @@ Intel GPU / NPU を使用して音声認識を高速化したい場合は、以�
 ## 入手方法
 
 ### 方法 A: ソースコードからコピー
+
 もしあなたがこのアプリケーションを自分でビルドできる環境を持っているなら、以下のパスにこれらのファイルが存在します。
 `node_modules/nodejs-whisper/cpp/whisper.cpp/build/bin/`
 
 ### 方法 B: Intel 公式から入手
+
 Intel Distribution of OpenVINO Toolkit の公式サイトから、対応するバージョンのランタイムライブラリをダウンロードしてください。
 (※ Whisper.cpp と互換性のあるバージョンを選択する必要があります)
 

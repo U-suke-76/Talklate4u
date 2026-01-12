@@ -17,7 +17,6 @@ Combines local Whisper (OpenVINO optimized) for fast transcription and LLMs (Gro
 
 2. **Initial Setup (ASR & Translation Settings)**
    To use the translation feature, click the "Settings" button in the top right corner or go to **File > Settings** in the menu bar.
-
    - **Speech Recognition (Whisper)**
      - **Provider**: Select `Local` (default), `Groq`, or `OpenAI`.
      - **Groq/OpenAI**: Requires an API Key. Cloud ASR allows for high-accuracy recognition using the `large-v3-turbo` model without burdening your PC.
@@ -58,7 +57,7 @@ Using **OpenVINO optimized models** can improve inference speed.
 1. **Download Model**
    Download the OpenVINO version (`.xml` and `.bin` set) of the model you wish to use from the link below.
    - [Hugging Face: Intel/whisper.cpp-openvino-models](https://huggingface.co/Intel/whisper.cpp-openvino-models/tree/main)
-   - *Recommended*: `ggml-small-models.zip`
+   - _Recommended_: `ggml-small-models.zip`
 
 2. **Place Model**
    Extract the files (`.xml`, `.bin`) and copy them to the app's model folder.
@@ -79,7 +78,7 @@ If you have an NVIDIA GPU, you can use the CUDA version of `whisper-server.exe` 
 
 1. **Get CUDA Server**
    Download the Windows CUDA (cuBLAS) pre-built binary (`whisper-cublas-bin-x64.zip`, etc.) from the [whisper.cpp releases](https://github.com/ggerganov/whisper.cpp/releases/latest).
-   *Note: Ensure that the necessary DLLs (`cublas64_11.dll`, `cudart64_110.dll`, etc.) are included or that the CUDA Toolkit is installed on your system.*
+   _Note: Ensure that the necessary DLLs (`cublas64_11.dll`, `cudart64_110.dll`, etc.) are included or that the CUDA Toolkit is installed on your system._
 
 2. **Place Files**
    Place the downloaded files (`whisper-server.exe` and related DLLs) in a suitable folder (e.g., `C:\Tools\whisper-cuda`).
@@ -91,7 +90,7 @@ If you have an NVIDIA GPU, you can use the CUDA version of `whisper-server.exe` 
 4. **Adjust Settings (Only if necessary)**
    Some versions may require specifying `-ngl 99` (number of GPU layers) in `Extra Arguments`.
    However, if you encounter an **error at startup** (if `-ngl` is not in the help), this option is **not required (leave blank)**.
-   *Note: If the log shows `ggml_cuda_init: found ... CUDA devices`, the GPU is recognized even without options.*
+   _Note: If the log shows `ggml_cuda_init: found ... CUDA devices`, the GPU is recognized even without options._
 
 5. **Verify**
    Press "Start" and if transcription works, you are all set. You can check CUDA usage in Task Manager.
@@ -109,7 +108,7 @@ Note that the `whisper-server.exe` binary is not included in the npm package and
 - **Visual Studio Build Tools 2022 (or 2026)**
   - Workload: "Desktop development with C++"
 - **OpenVINO Toolkit**: 2025.0 or later
-  - *Note: For Intel OpenVINO (GPU/NPU) support, additional setup is required. See [docs/openvino.md](docs/openvino.md) for details.*
+  - _Note: For Intel OpenVINO (GPU/NPU) support, additional setup is required. See [docs/openvino.md](docs/openvino.md) for details._
 - **CMake**: 3.20 or later
 - **Ninja**: Build system (Recommended)
 
@@ -133,6 +132,7 @@ Steps to build `whisper-server.exe`, the core of this app, with OpenVINO support
 
 2. **Set OpenVINO Environment Variables (Optional)**
    Run `setupvars.bat`.
+
    ```cmd
    "C:\Program Files (x86)\Intel\openvino_2025...\setupvars.bat"
    ```
@@ -143,7 +143,7 @@ Steps to build `whisper-server.exe`, the core of this app, with OpenVINO support
 
    ```cmd
    cd node_modules/nodejs-whisper/cpp/whisper.cpp
-   
+
    rmdir /s /q build
    cmake -B build -G "Ninja" -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=Release -DWHISPER_BUILD_SERVER=ON
    cmake --build build
@@ -153,14 +153,14 @@ Steps to build `whisper-server.exe`, the core of this app, with OpenVINO support
 
 4. **Place DLLs**
    Collect the necessary DLLs into the build output (`build/bin`). Without this, a `DllNotFound` error will occur at runtime.
-   
+
    ```cmd
    # Navigate to output directory
    cd build/bin
-   
+
    # Copy OpenVINO runtime and plugins
    copy "C:\Program Files (x86)\Intel\openvino_...\runtime\bin\intel64\Release\*.dll" .
-   
+
    # Copy TBB (Threading Building Blocks)
    copy "C:\Program Files (x86)\Intel\openvino_...\runtime\3rdparty\tbb\bin\*.dll" .
    ```

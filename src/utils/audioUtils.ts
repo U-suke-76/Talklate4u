@@ -1,4 +1,3 @@
-
 export function createWavBuffer(pcmData: Int16Array) {
   const sampleRate = 16000;
   const numChannels = 1;
@@ -10,12 +9,12 @@ export function createWavBuffer(pcmData: Int16Array) {
   const view = new DataView(buffer);
 
   // RIFF chunk descriptor
-  writeString(view, 0, "RIFF");
+  writeString(view, 0, 'RIFF');
   view.setUint32(4, 36 + dataByteCount, true);
-  writeString(view, 8, "WAVE");
+  writeString(view, 8, 'WAVE');
 
   // fmt sub-chunk
-  writeString(view, 12, "fmt ");
+  writeString(view, 12, 'fmt ');
   view.setUint32(16, 16, true);
   view.setUint16(20, 1, true); // PCM
   view.setUint16(22, numChannels, true);
@@ -25,7 +24,7 @@ export function createWavBuffer(pcmData: Int16Array) {
   view.setUint16(34, 16, true); // Bits per sample
 
   // data sub-chunk
-  writeString(view, 36, "data");
+  writeString(view, 36, 'data');
   view.setUint32(40, dataByteCount, true);
 
   // Write PCM data

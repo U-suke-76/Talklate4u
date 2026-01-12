@@ -1,5 +1,11 @@
 /* eslint-disable react-hooks/rules-of-hooks */
-import { test as base, expect, _electron as electron, Page, ElectronApplication } from '@playwright/test';
+import {
+  test as base,
+  expect,
+  _electron as electron,
+  Page,
+  ElectronApplication,
+} from '@playwright/test';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -24,7 +30,7 @@ export const test = base.extend<TestFixtures>({
     const app = await electron.launch({
       args: [appPath, `--config=${configPath}`, ...launchArgs],
       executablePath: electronPath,
-      env: { ...process.env, NODE_ENV: 'development' }
+      env: { ...process.env, NODE_ENV: 'development' },
     });
 
     await use(app);

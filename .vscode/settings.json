@@ -1,13 +1,9 @@
 {
-    "terminal.integrated.profiles.windows": {
-        "PowerShell": {
-            "source": "PowerShell",
-            "icon": "terminal-powershell",
-            "args": [
-                "-NoExit",
-                "-Command",
-                "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8"
-            ]
-        }
+  "terminal.integrated.profiles.windows": {
+    "PowerShell": {
+      "source": "PowerShell",
+      "icon": "terminal-powershell",
+      "args": ["-NoExit", "-Command", "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8"]
     }
+  }
 }

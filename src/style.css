@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+@plugin "daisyui";
 
 html,
 body,
@@ -10,5 +9,5 @@ body,
   overflow: hidden;
   background-color: #1a1a1a;
   color: #fff;
-  font-family: "Inter", sans-serif;
+  font-family: 'Inter', sans-serif;
 }

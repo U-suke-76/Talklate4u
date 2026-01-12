@@ -6,15 +6,15 @@ export default defineConfig({
     lib: {
       entry: 'src/preload.ts',
       formats: ['cjs'],
-      fileName: 'preload'
+      fileName: 'preload',
     },
     rollupOptions: {
       external: ['electron'],
       output: {
         format: 'cjs',
-        entryFileNames: '[name].cjs'
-      }
+        entryFileNames: '[name].cjs',
+      },
     },
-    minify: false
-  }
+    minify: false,
+  },
 });
