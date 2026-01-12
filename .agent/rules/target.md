@@ -1,4 +1,4 @@
----
+﻿---
 trigger: always_on
 ---
 
@@ -25,7 +25,9 @@ trigger: always_on
 
 - **Verification**: If your changes affect **three or more files**, you are REQUIRED to suggest/execute `npm run lint` to ensure cross-file consistency.
 - **Final Touch**: Propose or remind to run `npm run format` after any file modification to maintain the codebase.
-  縺ｾ縺溘∝ｮ溯｣・↓縺翫＞縺ｦ縺ｯ莉･荳九・繝ｫ繝ｼ繝ｫ繧貞宍螳医＠縺ｦ縺上□縺輔＞縲・
-- \*_繧ｳ繝ｼ繝・ぅ繝ｳ繧ｰ隕冗ｴ・_: 繝励Ο繧ｸ繧ｧ繧ｯ繝医・繧ｳ繝ｼ繝・ぅ繝ｳ繧ｰ隕冗ｴ・↓蠕薙＞縲´int 繧ｨ繝ｩ繝ｼ繧・ｭｦ蜻翫ｒ逋ｺ逕溘＆縺帙↑縺・％縺ｨ縲・
-- **謚陦薙せ繧ｿ繝・け**: Tailwind CSS v4 縺翫ｈ縺ｳ DaisyUI v5 縺ｮ莉墓ｧ倥↓貅匁侠縺励◆螳溯｣・ｒ陦後≧縺薙→・・@tailwind 繝・ぅ繝ｬ繧ｯ繝・ぅ繝悶・莉｣繧上ｊ縺ｫ @import 繧剃ｽｿ逕ｨ縺吶ｋ縺ｪ縺ｩ・峨・
-- **TypeScript**: TypeScript 5.x 縺ｮ讖溯・繧堤ｩ肴･ｵ逧・↓豢ｻ逕ｨ縺吶ｋ縺薙→縲・
+- **Documentation**: Record changes in `CHANGELOG.md` following standard changelog conventions.
+
+  Additionally, please strictly adhere to the following implementation rules:
+- **Coding Standards**: Follow the project's coding conventions and ensure there are no lint errors or warnings.
+- **Tech Stack**: Implementations must comply with Tailwind CSS v4 and DaisyUI v5 specifications (e.g., using @import instead of @tailwind directives).
+- **TypeScript**: Actively utilize features of TypeScript 5.x.
