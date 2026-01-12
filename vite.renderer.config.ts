@@ -22,11 +22,23 @@ export default defineConfig({
           dest: '.',
         },
         {
+          src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.wasm',
+          dest: '.',
+        },
+        {
+          src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm',
+          dest: '.',
+        },
+        {
           src: 'node_modules/onnxruntime-web/dist/ort.all.min.js',
           dest: '.',
         },
         {
           src: 'node_modules/@ricky0123/vad-web/dist/silero_vad_v5.onnx',
+          dest: '.',
+        },
+        {
+          src: 'node_modules/@ricky0123/vad-web/dist/silero_vad_legacy.onnx',
           dest: '.',
         },
         {
