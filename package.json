@@ -59,7 +59,7 @@
     "clsx": "^2.1.1",
     "daisyui": "^5.5.14",
     "dotenv": "^17.2.3",
-    "electron": "^33.0.0",
+    "electron": "^39.2.7",
     "electron-log": "^5.4.3",
     "electron-squirrel-startup": "^1.0.1",
     "electron-store": "^11.0.2",
@@ -72,7 +72,6 @@
     "franc": "^6.2.0",
     "handlebars": "^4.7.8",
     "jimp": "^1.6.0",
-    "nodejs-whisper": "^0.2.9",
     "onnxruntime-web": "^1.23.2",
     "openai": "^6.15.0",
     "playwright": "^1.57.0",
@@ -84,9 +83,10 @@
     "typescript": "^5.7.3",
     "vite": "^5.4.21",
     "vite-plugin-static-copy": "^3.1.4",
-    "zod": "^4.2.1"
+    "zod": "^4.3.5"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "express": "^5.2.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

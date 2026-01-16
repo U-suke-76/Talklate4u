@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { createWavBuffer } from '../utils/audioUtils';
+import { RecognitionManager } from '../managers/RecognitionManager';
 
 export interface LogItem {
   id: number;
@@ -8,12 +8,6 @@ export interface LogItem {
   original: string;
   translated?: string;
   type?: 'system' | 'chat';
-}
-
-interface TranscribeResponse {
-  text?: string;
-  language?: string;
-  error?: string;
 }
 
 interface TranslateResponse {
@@ -47,32 +41,38 @@ export function useSpeechTranslation(
     const currentId = logIdCounter.current++;
     const recogTime = new Date().toLocaleTimeString();
 
-    // Convert Float32 to Int16
-    const pcm = new Int16Array(audio.length);
-    for (let i = 0; i < audio.length; i++) {
-      pcm[i] = Math.max(-1, Math.min(1, audio[i])) * 0x7fff;
-    }
-
-    const wavBuffer = createWavBuffer(pcm);
-
     try {
-      const res = (await window.electronAPI.transcribeAudio(
-        wavBuffer,
-        'auto', // Prefer auto or config
-      )) as TranscribeResponse;
+      // Get current config to decide language and model
+      const config = (await window.electronAPI.loadConfig()) as any; // Type 'any' to avoid strict sharing issues for now, or import AppConfig
+      const language = config?.whisper?.language || 'ja';
+
+      // Ensure the correct model is loaded for this language?
+      // Proactive loading should happen in App/Settings, but we can double check here or just expect it to be ready.
+      // If we try to transcribe without model, RecognitionManager throws.
+      // Auto-loading here might be too slow for real-time, but safe.
+      // Let's assume App manages loading.
+
+      const res = await RecognitionManager.getInstance().transcribe(audio, language);
+
       if (res.error) {
         console.error(res.error);
-        setStatusText('Transcription Error');
+        setStatusText(res.error); // Show detailed timeout/device error
+        addSystemLog(`Error: ${res.error}`);
         return;
       }
 
       const originalText = res.text?.trim();
-      const detectedLang = res.language;
+      // RecognitionManager returns the requested language, not necessarily detected if forced.
+      // But we can assume it's the requested one or 'auto' behavior?
+      // Transformers.js pipeline output usually doesn't give detection info unless asked specifically.
+      const detectedLang = res.language || language;
 
       if (!originalText || originalText === '[BLANK_AUDIO]') {
         setStatusText('Listening...');
         return;
       }
+
+      console.log(`[Recognition] Text: "${originalText}" (Lang: ${detectedLang})`);
 
       const newLog: LogItem = {
         id: currentId,

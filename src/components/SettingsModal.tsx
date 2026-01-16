@@ -1,22 +1,22 @@
 import React, { useEffect, useState } from 'react';
 
 import { GlossarySettings, GlossaryEntry } from './GlossarySettings';
+import { MicrophoneDevice } from '../hooks/useMicrophone';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
   onLog?: (msg: string) => void;
+  availableMics: MicrophoneDevice[];
 }
 
 interface AppConfig {
   whisper: {
     model: string;
-    serverPort: number;
+    models?: Record<string, string>;
     language: string;
-    extraArgs?: string;
-    binPath?: string;
-    systemPrompt?: string;
+    device?: 'webgpu' | 'wasm';
     provider?: 'local' | 'groq' | 'openai';
     apiKey?: string;
     baseUrl?: string;
@@ -43,23 +43,16 @@ interface AppConfig {
   glossary?: GlossaryEntry[];
 }
 
-interface WhisperModel {
-  value: string;
-  name: string;
-  exists: boolean;
-}
-
-interface MicrophoneEntry {
-  deviceId: string;
-  label: string;
-}
-
 const DEFAULT_CONFIG: AppConfig = {
   whisper: {
-    model: 'ggml-base.bin',
-    serverPort: 8081,
-    language: 'ja',
-    extraArgs: '',
+    model: 'Xenova/whisper-small',
+    models: {
+      ja: 'Xenova/whisper-small',
+      en: 'Xenova/whisper-small',
+      default: 'Xenova/whisper-small',
+    },
+    language: 'auto',
+    device: 'wasm',
     provider: 'local',
     apiKey: '',
     baseUrl: '',
@@ -78,15 +71,23 @@ const DEFAULT_CONFIG: AppConfig = {
   glossary: [],
 };
 
+const SUGGESTED_MODELS = [
+  'onnx-community/whisper-large-v3-turbo',
+  'onnx-community/kotoba-whisper-v2.2-ONNX',
+  'Xenova/whisper-large-v3',
+  'Xenova/whisper-medium',
+  'Xenova/whisper-small',
+  'Xenova/whisper-tiny',
+];
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   onSaved,
   onLog,
+  availableMics,
 }) => {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
-  const [models, setModels] = useState<WhisperModel[]>([]);
-  const [allMics, setAllMics] = useState<MicrophoneEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'general' | 'whisper' | 'llm' | 'vad' | 'glossary'>(
     'general',
@@ -96,15 +97,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const current = await window.electronAPI.loadConfig();
     if (current) {
       // Logic to migrate old 'groq' config to 'llm' if needed
-      // Check if 'groq' exists in current but 'llm' does not (or is empty in file)
-      // Note: 'current' is the raw object from disk.
-
       interface LegacyConfig {
         groq?: { apiKey?: string; model?: string };
         llm?: AppConfig['llm'];
       }
       const rawConfig = current as LegacyConfig;
-
       let migratedLLM = rawConfig.llm;
 
       // Simple migration check: if current has groq and no llm
@@ -117,9 +114,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         };
       }
 
+      // Ensure models map exists
+      const whisperConfig = (current as AppConfig).whisper || DEFAULT_CONFIG.whisper;
+      if (!whisperConfig.models) {
+        whisperConfig.models = { ...DEFAULT_CONFIG.whisper.models };
+      }
+
       const merged: AppConfig = {
         ...DEFAULT_CONFIG,
         ...current,
+        whisper: whisperConfig,
         llm: migratedLLM || (current as AppConfig).llm || DEFAULT_CONFIG.llm,
         translation: (current as AppConfig).translation || DEFAULT_CONFIG.translation,
         vad: { ...DEFAULT_CONFIG.vad, ...((current as AppConfig).vad || {}) },
@@ -128,17 +132,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
       setConfig(merged);
     }
-    const m = (await window.electronAPI.getWhisperModels()) as WhisperModel[];
-    setModels(m);
-
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const mics = devices
-      .filter((d) => d.kind === 'audioinput')
-      .map((d) => ({
-        deviceId: d.deviceId,
-        label: d.label || `Mic ${d.deviceId.slice(0, 4)}`,
-      }));
-    setAllMics(mics);
+    // We don't fetch models via IPC anymore since it's local only.
   }, []);
 
   useEffect(() => {
@@ -183,21 +177,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setIsLoading(true);
     try {
       await window.electronAPI.saveConfig(config);
+      // Restart Whisper implies reloading the model in Renderer.
+      // checkServer will detect changes or we can trigger a reload.
+      // Since it's in-process, we might not need an explicit "restart" IPC call anymore for Whisper,
+      // but we do for Overlay/VAD potentially?
+      // Let's keep the existing flow; the Renderer components (RecognitionManager) react to config usage.
 
-      const res = await window.electronAPI.restartWhisper();
-      if (res.error) {
-        const msg = `Error starting Whisper: ${res.error}`;
-        console.error(msg);
-        if (onLog) {
-          onLog(msg);
-          onLog('Please check your settings in the menu.');
-        } else {
-          alert(msg + '\n\nPlease check your settings.');
-        }
-      } else {
-        onSaved();
-        onClose();
-      }
+      // Update: useServerStatus or RecognitionManager checks config on demand or we trigger reload?
+      // RecognitionManager doesn't auto-reload on config save unless we tell it.
+      // BUT, app reload isn't needed if we just update state.
+      // For now, simple save is enough. useServerStatus checks server status.
+
+      onSaved();
+      onClose();
     } catch (e) {
       console.error(e);
       const msg = 'Failed to save settings: ' + String(e);
@@ -233,7 +225,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <option value="" disabled>
           Select Microphone
         </option>
-        {allMics.map((mic) => (
+        {availableMics.map((mic) => (
           <option key={mic.deviceId} value={mic.label}>
             {mic.label}
           </option>
@@ -288,11 +280,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const renderWhisperTab = () => (
     <div className="py-4 grid grid-cols-[140px_1fr] gap-4 items-center">
-      <div className="col-span-2 text-lg font-bold text-gray-300 mb-2">Whisper Settings</div>
+      <div className="col-span-2 text-lg font-bold text-gray-300 mb-2">Speech Recognition</div>
 
       {/* Whisper Provider */}
       <label className="font-bold text-gray-300" htmlFor="whisper-provider">
-        Whisper Provider
+        Provider
       </label>
       <select
         id="whisper-provider"
@@ -304,24 +296,102 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             whisper: {
               ...config.whisper,
               provider: e.target.value as 'local' | 'groq' | 'openai',
-              model:
-                e.target.value === 'groq'
-                  ? 'whisper-large-v3-turbo'
-                  : e.target.value === 'local'
-                    ? 'ggml-base.bin'
-                    : 'whisper-1',
             },
           })
         }
       >
-        <option value="local">Local (whisper.cpp)</option>
+        <option value="local">Local (Transformers.js)</option>
         <option value="groq">Groq API</option>
         <option value="openai">OpenAI API</option>
       </select>
 
-      {/* API Key (Remote) */}
+      {/* Local (Transformers.js) Settings */}
+      {config.whisper.provider === 'local' && (
+        <>
+          <div className="col-span-2 text-sm text-gray-500 mb-4 bg-gray-800 p-3 rounded">
+            Runs locally in your browser using WebGPU. No data is sent to external servers.
+          </div>
+
+          {/* Device Selection */}
+          <label className="font-bold text-gray-300">Device</label>
+          <select
+            className="select select-bordered w-full mb-4"
+            value={config.whisper.device || 'webgpu'}
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                whisper: { ...config.whisper, device: e.target.value as 'webgpu' | 'wasm' },
+              })
+            }
+          >
+            <option value="webgpu">GPU (WebGPU) - Faster (Unstable on some PCs)</option>
+            <option value="wasm">CPU (WASM) - Slower but Stable</option>
+          </select>
+
+          <label className="font-bold text-gray-300" htmlFor="model-ja">
+            Japanese Model
+          </label>
+          <div className="flex flex-col gap-1">
+            <input
+              type="text"
+              list="model-suggestions"
+              className="input input-bordered w-full"
+              value={config.whisper.models?.ja || ''}
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  whisper: {
+                    ...config.whisper,
+                    models: { ...config.whisper.models, ja: e.target.value },
+                  },
+                })
+              }
+            />
+            <div className="text-xs text-secondary">
+              Recommended: onnx-community/kotoba-whisper-v2.2-ONNX
+            </div>
+          </div>
+
+          {/* Multilingual / Other Model */}
+          <label className="font-bold text-gray-300" htmlFor="model-default">
+            Other Languages
+          </label>
+          <div className="flex flex-col gap-1">
+            <input
+              type="text"
+              list="model-suggestions"
+              className="input input-bordered w-full"
+              value={config.whisper.models?.default || ''}
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  whisper: {
+                    ...config.whisper,
+                    models: { ...config.whisper.models, default: e.target.value },
+                  },
+                })
+              }
+            />
+            <div className="text-xs text-secondary">
+              Recommended: onnx-community/whisper-large-v3-turbo
+            </div>
+          </div>
+
+          <datalist id="model-suggestions">
+            {SUGGESTED_MODELS.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
+        </>
+      )}
+
+      {/* Cloud (Groq/OpenAI) Settings */}
       {(config.whisper.provider === 'groq' || config.whisper.provider === 'openai') && (
         <>
+          <div className="col-span-2 text-sm text-gray-500 mb-4 bg-gray-800 p-3 rounded">
+            Uses external APIs for transcription. Requires an API Key.
+          </div>
+
           <label className="font-bold text-gray-300" htmlFor="whisper-api-key">
             API Key
           </label>
@@ -338,165 +408,65 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               })
             }
           />
+
+          {config.whisper.provider === 'openai' && (
+            <>
+              <label className="font-bold text-gray-300" htmlFor="whisper-base-url">
+                Base URL
+              </label>
+              <input
+                id="whisper-base-url"
+                type="text"
+                className="input input-bordered w-full font-mono text-sm"
+                value={config.whisper.baseUrl || ''}
+                placeholder="https://api.openai.com/v1/audio/transcriptions"
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    whisper: { ...config.whisper, baseUrl: e.target.value },
+                  })
+                }
+              />
+            </>
+          )}
+
+          <label className="font-bold text-gray-300" htmlFor="whisper-model-cloud">
+            Model ID
+          </label>
+          {config.whisper.provider === 'groq' ? (
+            <select
+              id="whisper-model-cloud"
+              className="select select-bordered w-full"
+              value={config.whisper.model}
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  whisper: { ...config.whisper, model: e.target.value },
+                })
+              }
+            >
+              <option value="whisper-large-v3-turbo">whisper-large-v3-turbo</option>
+              <option value="whisper-large-v3">whisper-large-v3</option>
+              <option value="distil-whisper-large-v3-en">distil-whisper-large-v3-en</option>
+              <option value="whisper-1">whisper-1</option>
+            </select>
+          ) : (
+            <input
+              id="whisper-model-cloud"
+              type="text"
+              className="input input-bordered w-full"
+              value={config.whisper.model}
+              placeholder="whisper-1"
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  whisper: { ...config.whisper, model: e.target.value },
+                })
+              }
+            />
+          )}
         </>
       )}
-
-      {/* Base URL (OpenAI) */}
-      {config.whisper.provider === 'openai' && (
-        <>
-          <label className="font-bold text-gray-300" htmlFor="whisper-base-url">
-            Base URL
-          </label>
-          <input
-            id="whisper-base-url"
-            type="text"
-            className="input input-bordered w-full font-mono text-sm"
-            value={config.whisper.baseUrl || ''}
-            placeholder="https://api.openai.com/v1/audio/transcriptions"
-            onChange={(e) =>
-              setConfig({
-                ...config,
-                whisper: { ...config.whisper, baseUrl: e.target.value },
-              })
-            }
-          />
-        </>
-      )}
-
-      {/* Whisper Model */}
-      <label className="font-bold text-gray-300" htmlFor="whisper-model">
-        Whisper Model
-      </label>
-      {config.whisper.provider === 'groq' ? (
-        <select
-          id="whisper-model"
-          className="select select-bordered w-full"
-          value={config.whisper.model}
-          onChange={(e) =>
-            setConfig({
-              ...config,
-              whisper: { ...config.whisper, model: e.target.value },
-            })
-          }
-        >
-          <option value="whisper-large-v3-turbo">whisper-large-v3-turbo</option>
-          <option value="whisper-large-v3">whisper-large-v3</option>
-          <option value="distil-whisper-large-v3-en">distil-whisper-large-v3-en</option>
-          <option value="whisper-1">whisper-1</option>
-        </select>
-      ) : config.whisper.provider === 'openai' ? (
-        <input
-          id="whisper-model"
-          type="text"
-          className="input input-bordered w-full"
-          value={config.whisper.model}
-          placeholder="whisper-1"
-          onChange={(e) =>
-            setConfig({
-              ...config,
-              whisper: { ...config.whisper, model: e.target.value },
-            })
-          }
-        />
-      ) : (
-        <select
-          id="whisper-model"
-          className="select select-bordered w-full"
-          value={config.whisper.model}
-          onChange={(e) =>
-            setConfig({
-              ...config,
-              whisper: { ...config.whisper, model: e.target.value },
-            })
-          }
-        >
-          {models.map((m) => (
-            <option key={m.value} value={m.value}>
-              {m.name} {m.exists ? '' : '(Download Needed)'}
-            </option>
-          ))}
-        </select>
-      )}
-
-      {/* Local Only Settings */}
-      {(!config.whisper.provider || config.whisper.provider === 'local') && (
-        <>
-          <label className="font-bold text-gray-300" htmlFor="whisper-bin-path">
-            Whisper Server Path
-          </label>
-          <input
-            id="whisper-bin-path"
-            type="text"
-            className="input input-bordered w-full font-mono text-sm"
-            placeholder="Absolute path to whisper-server.exe (Leave empty for built-in)"
-            value={config.whisper.binPath || ''}
-            onChange={(e) =>
-              setConfig({
-                ...config,
-                whisper: { ...config.whisper, binPath: e.target.value },
-              })
-            }
-          />
-          <div className="col-span-2 text-xs text-gray-500 mb-2">
-            Optional: Specify custom server path (e.g., for GPU/CUDA version).
-          </div>
-
-          <label className="font-bold text-gray-300" htmlFor="whisper-port">
-            Whisper Port
-          </label>
-          <input
-            id="whisper-port"
-            type="number"
-            className="input input-bordered w-full"
-            value={config.whisper.serverPort}
-            onChange={(e) =>
-              setConfig({
-                ...config,
-                whisper: {
-                  ...config.whisper,
-                  serverPort: parseInt(e.target.value),
-                },
-              })
-            }
-          />
-        </>
-      )}
-
-      {/* Advanced Settings */}
-      <div className="col-span-2 divider text-gray-500">Advanced</div>
-
-      <label className="font-bold text-gray-300" htmlFor="whisper-system-prompt">
-        System Prompt
-      </label>
-      <textarea
-        id="whisper-system-prompt"
-        className="textarea textarea-bordered w-full h-24"
-        placeholder="Optional: Context, vocabulary..."
-        value={config.whisper.systemPrompt || ''}
-        onChange={(e) =>
-          setConfig({
-            ...config,
-            whisper: { ...config.whisper, systemPrompt: e.target.value },
-          })
-        }
-      />
-
-      <label className="font-bold text-gray-300" htmlFor="whisper-extra-args">
-        Extra Arguments
-      </label>
-      <input
-        id="whisper-extra-args"
-        type="text"
-        className="input input-bordered w-full font-mono text-sm"
-        placeholder="e.g. --ov-e-device GPU or -t 8"
-        value={config.whisper.extraArgs || ''}
-        onChange={(e) =>
-          setConfig({
-            ...config,
-            whisper: { ...config.whisper, extraArgs: e.target.value },
-          })
-        }
-      />
     </div>
   );
 
@@ -745,7 +715,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             className={`tab ${activeTab === 'whisper' ? 'tab-active' : ''}`}
             onClick={() => setActiveTab('whisper')}
           >
-            Whisper
+            Speech (Whisper)
           </a>
           <a
             role="tab"

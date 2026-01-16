@@ -6,7 +6,6 @@ import log from 'electron-log/main';
 
 // Managers & Services
 import { ConfigManager } from './managers/ConfigManager';
-import { WhisperManager } from './server/WhisperManager';
 
 import { OverlayServer } from './server/OverlayServer';
 import { TranslationService } from './services/TranslationService';
@@ -19,6 +18,10 @@ import squirrelStartup from 'electron-squirrel-startup';
 if (squirrelStartup) {
   app.quit();
 }
+
+// Enable WebGPU features for experimental support
+app.commandLine.appendSwitch('enable-unsafe-webgpu');
+app.commandLine.appendSwitch('enable-features', 'Vulkan');
 
 // Initialize Logging
 log.initialize();
@@ -51,7 +54,6 @@ console.log('[Main] process.argv:', process.argv);
 
 // Initialize Managers
 const configManager = ConfigManager.getInstance();
-const whisperManager = new WhisperManager();
 const overlayServer = new OverlayServer(configManager.getConfig().overlay.port);
 const translationService = new TranslationService(overlayServer, (msg) => {
   if (mainWindow) {
@@ -86,14 +88,6 @@ app.on('ready', () => {
 
   // Start Services
   // Start Services
-  whisperManager.start().catch((err) => console.error('Failed to start Whisper on launch:', err));
-
-  // Hook Whisper Progress
-  whisperManager.on('download-progress', (progress: string) => {
-    if (mainWindow) {
-      mainWindow.webContents.send('download-progress', progress);
-    }
-  });
 
   // Start Overlay
   const overlayPath = IS_DEV
@@ -112,7 +106,6 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
-  whisperManager.stop();
   overlayServer.stop();
 });
 
@@ -141,70 +134,12 @@ ipcMain.on('renderer-log', (event, message) => {
   console.log(`[Renderer] ${message}`);
 });
 
-// Whisper Status
-ipcMain.handle('check-whisper-status', async () => {
-  const isRunning = (await whisperManager.checkStatus()).running;
-  const config = configManager.getConfig();
-
-  const missing: string[] = [];
-  if (!config.whisper?.model) missing.push('Whisper Model');
-
-  // Check LLM Config
-  const { provider, apiKey, baseUrl } = config.llm;
-  if (provider === 'groq' && !apiKey) missing.push('Groq API Key');
-  if (provider === 'openai' && !baseUrl && !apiKey) missing.push('OpenAI API Key'); // Assume official needs key
-
-  return {
-    success: isRunning,
-    isDownloading: whisperManager.isDownloading,
-    progress: whisperManager.downloadProgress,
-    configIssues: missing,
-  };
-});
-
 // Overlay Status
 ipcMain.handle('check-overlay-status', () => {
   return {
     success: overlayServer.isRunning(),
     port: overlayServer.getPort(),
   };
-});
-
-// Restart Whisper
-ipcMain.handle('restart-whisper', async () => {
-  try {
-    const config = configManager.getConfig();
-    const modelName = config.whisper.model;
-    const modelPath = path.join(whisperManager.getModelsDir(), modelName);
-
-    const provider = config.whisper.provider || 'local';
-
-    // Only check/download model if provider is local
-    if (provider === 'local') {
-      if (!fs.existsSync(modelPath)) {
-        whisperManager.stop();
-        await whisperManager.downloadModel(modelName);
-      }
-    }
-
-    await whisperManager.start(config.whisper.language);
-    return { success: true };
-  } catch (e) {
-    // Reset downloading state just in case
-    whisperManager.isDownloading = false;
-    console.error('Restart Whisper Error:', e);
-    const errorMessage = e instanceof Error ? e.message : String(e);
-    // Also stop if it failed halfway
-    whisperManager.stop();
-    return { error: errorMessage };
-  }
-});
-
-// Transcribe
-ipcMain.handle('transcribe-audio', async (e, buffer: ArrayBuffer) => {
-  // Note: language arg is usually ignored by the server if it's already running with a set language,
-  // but we accept it to match the signature.
-  return await whisperManager.transcribe(buffer);
 });
 
 // Translate
@@ -215,21 +150,4 @@ ipcMain.handle('translate-text', async (e, text: string, detectedLanguage?: stri
 // Get Groq Models
 ipcMain.handle('get-groq-models', async (e, apiKey: string) => {
   return await translationService.getGroqModels(apiKey);
-});
-
-// Get Models
-ipcMain.handle('get-whisper-models', async () => {
-  const models = [
-    { value: 'ggml-tiny.bin', name: 'Tiny' },
-    { value: 'ggml-base.bin', name: 'Base' },
-    { value: 'ggml-small.bin', name: 'Small' },
-    { value: 'ggml-medium.bin', name: 'Medium' },
-    { value: 'ggml-large-v3-turbo.bin', name: 'Large (v3 Turbo)' },
-    { value: 'ggml-large-v3.bin', name: 'Large (v3)' },
-  ];
-  const results = models.map((m) => {
-    const p = path.join(whisperManager.getModelsDir(), m.value);
-    return { ...m, exists: fs.existsSync(p) };
-  });
-  return results;
 });

@@ -22,6 +22,10 @@ export default defineConfig({
           dest: '.',
         },
         {
+          src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs',
+          dest: '.',
+        },
+        {
           src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.wasm',
           dest: '.',
         },
@@ -56,7 +60,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
-      'onnxruntime-web': resolve(__dirname, 'src/shims/ort.ts'),
+      // 'onnxruntime-web': resolve(__dirname, 'src/shims/ort.ts'), // Removed: Breaks Worker (transformers.js v3 handles it)
       '@ricky0123/vad-web': resolve(__dirname, 'src/shims/vad.ts'),
     },
   },

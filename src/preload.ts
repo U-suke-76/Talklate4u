@@ -2,13 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   // Whisper / Audio
-  transcribeAudio: (audioBuffer: ArrayBuffer, language: string) =>
-    ipcRenderer.invoke('transcribe-audio', audioBuffer, language),
-  restartWhisper: () => ipcRenderer.invoke('restart-whisper'),
-  checkWhisperStatus: () => ipcRenderer.invoke('check-whisper-status'),
-  checkOverlayStatus: () => ipcRenderer.invoke('check-overlay-status'),
-  getWhisperModels: () => ipcRenderer.invoke('get-whisper-models'),
 
+  checkOverlayStatus: () => ipcRenderer.invoke('check-overlay-status'),
   // Translation
   translateText: (text: string, detectedLanguage?: string) =>
     ipcRenderer.invoke('translate-text', text, detectedLanguage),

@@ -32,7 +32,7 @@ const App: React.FC = () => {
     scrollToBottom,
   );
 
-  const { serverStatus, overlayStatus, checkServer } = useServerStatus(
+  const { serverStatus, overlayStatus, checkServer, reloadModel } = useServerStatus(
     isListeningRef,
     addSystemLog,
     setStatusText,
@@ -41,7 +41,7 @@ const App: React.FC = () => {
 
   // --- Handlers ---
 
-  const { activeMic, loadMicrophones, selectMicrophone, setActiveMic } =
+  const { activeMic, loadMicrophones, selectMicrophone, setActiveMic, microphones } =
     useMicrophone(addSystemLog);
 
   // --- Effects ---
@@ -125,6 +125,8 @@ const App: React.FC = () => {
   };
 
   const handleSettingsSaved = async () => {
+    // Reload config and force model reload
+    await reloadModel();
     await checkServer();
     if (isListeningRef.current) {
       addSystemLog('Settings saved. Restarting VAD to apply changes...');
@@ -201,14 +203,22 @@ const App: React.FC = () => {
         onClose={() => setShowSettings(false)}
         onSaved={handleSettingsSaved}
         onLog={addSystemLog}
+        availableMics={microphones}
       />
 
       {/* Download Progress Modal */}
-      {(statusText.startsWith('Downloading') || statusText.includes('Starting download')) && (
-        <div className="fixed inset-0 bg-black/80 z-1000 flex items-center justify-center p-4">
+      {(statusText.startsWith('Downloading') ||
+        statusText.includes('Starting download') ||
+        statusText.startsWith('progress') ||
+        statusText.startsWith('Initiating')) && (
+        <div className="fixed inset-0 bg-black/80 z-[9999] flex items-center justify-center p-4">
           <div className="bg-gray-800 p-6 rounded-xl max-w-md w-full shadow-2xl border border-gray-700 animate-fade-in-up">
-            <h3 className="text-xl font-bold mb-4 text-primary">System Update</h3>
-            <p className="text-gray-300 mb-6 text-center">{statusText}</p>
+            <h3 className="text-xl font-bold mb-2 text-primary">System Update</h3>
+            <p className="text-gray-300 mb-4 text-center font-bold">Downloading AI Model...</p>
+            {/* Show specific status text smaller to avoid visual noise while files switch */}
+            <div className="text-xs text-gray-400 text-center mb-4 truncate w-full px-2">
+              {statusText}
+            </div>
 
             <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden relative">
               <div
@@ -218,7 +228,7 @@ const App: React.FC = () => {
             </div>
 
             <p className="text-xs text-center text-gray-500 mt-4">
-              Downloading AI Model... Please do not close the app.
+              Please do not close the app until completed.
             </p>
           </div>
         </div>

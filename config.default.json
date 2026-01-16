@@ -1,8 +1,14 @@
 {
   "whisper": {
-    "model": "ggml-base.bin",
-    "language": "auto",
-    "serverPort": 8081
+    "provider": "local",
+    "device": "wasm",
+    "model": "Xenova/whisper-small",
+    "models": {
+      "default": "Xenova/whisper-small",
+      "ja": "Xenova/whisper-small",
+      "en": "Xenova/whisper-small"
+    },
+    "language": "auto"
   },
   "llm": {
     "provider": "groq",

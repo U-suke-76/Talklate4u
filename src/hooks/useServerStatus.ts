@@ -1,11 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-
-export interface ServerStatusResult {
-  success: boolean;
-  isDownloading?: boolean;
-  progress?: string;
-  configIssues?: string[];
-}
+import { RecognitionManager, RecognitionProgress } from '../managers/RecognitionManager';
+// import { AppConfig } from '../managers/ConfigManager'; // Unused
 
 export interface OverlayStatusResult {
   success: boolean;
@@ -16,84 +11,121 @@ export function useServerStatus(
   isListeningRef: React.MutableRefObject<boolean>,
   addSystemLog: (msg: string) => void,
   setStatusText: (text: string) => void,
-  statusText: string, // We might need the current value for checking "Downloading" state if logic depends on it, but here it depends on `res.isDownloading`.
+  statusText: string,
 ) {
   const [serverStatus, setServerStatus] = useState(false);
   const [overlayStatus, setOverlayStatus] = useState<OverlayStatusResult | null>(null);
   const lastServerStatus = useRef<boolean | null>(null);
 
-  const checkServer = useCallback(async () => {
-    const res = (await window.electronAPI.checkWhisperStatus()) as ServerStatusResult;
-    setServerStatus(res.success);
+  // Track if we have initialized the progress listener
+  const isListenerAttached = useRef(false);
 
-    // Check overlay status
-    const overlayRes = await window.electronAPI.checkOverlayStatus();
-    setOverlayStatus(overlayRes);
+  // Function to ensure the correct model is loaded based on config
+  const ensureModelLoaded = useCallback(async () => {
+    try {
+      const config = (await window.electronAPI.loadConfig()) as any;
+      if (!config || !config.whisper) return;
 
-    // If downloading, update statusText to show progress
-    // If NOT downloading, show Ready/Offline status
-    if (res.isDownloading && res.progress) {
-      setStatusText(res.progress);
-    } else {
-      // Check if we are currently showing a "Downloading" status but the server says it's done.
-      // We also check !isListeningRef.current to perform normal updates.
-      const isStuckDownloading =
-        statusText.startsWith('Downloading') || statusText.includes('Starting download');
-
-      if (!isListeningRef.current || isStuckDownloading) {
-        const msg = res.success ? 'Ready' : 'Server Offline (Check Settings)';
-        setStatusText(msg);
-      }
-    }
-
-    if (res.success && !lastServerStatus.current) {
-      addSystemLog('Whisper Server is Ready');
-      // Validate additional config on successful connection
-      const cfg = (await window.electronAPI.loadConfig()) as {
-        llm?: { apiKey?: string };
-        whisper?: { model?: string };
-      };
-      if (!cfg?.llm?.apiKey) {
-        addSystemLog('WARNING: Groq API Key is missing. Translation will not work.');
-      }
-      if (!cfg?.whisper?.model) {
-        addSystemLog('WARNING: No Whisper model selected.');
-      }
-    } else if (!res.success && !res.isDownloading && lastServerStatus.current !== false) {
-      // Just showing hint if it remains offline
-      addSystemLog('Whisper Server is Offline.');
-
-      // Use configIssues from main process
-      if (res.configIssues && res.configIssues.length > 0) {
-        res.configIssues.forEach((issue: string) => {
-          addSystemLog(`Tip: Missing ${issue}. Please check Settings.`);
+      // Trigger load with full whisper config
+      // The manager handles logic for provider (local vs cloud) and model selection.
+      RecognitionManager.getInstance()
+        .loadModel(config.whisper)
+        .catch((err) => {
+          console.error('Auto-load model failed:', err);
+          // We don't necessarily want to spam logs here, manager will handle internal error state
         });
-      } else {
-        addSystemLog('Tip: Ensure Whisper Server is running (Settings -> Save & Restart).');
-      }
+    } catch (e) {
+      console.error('Failed to load config for model check', e);
     }
-    lastServerStatus.current = res.success;
-  }, [addSystemLog, isListeningRef, setStatusText, statusText]);
+  }, []);
+
+  const checkServer = useCallback(async () => {
+    // 1. Check Overlay (still IPC)
+    try {
+      const overlayRes = await window.electronAPI.checkOverlayStatus();
+      setOverlayStatus(overlayRes);
+    } catch (e) {
+      console.error('Overlay check failed', e);
+      setOverlayStatus({ success: false, port: 0 });
+    }
+
+    // 2. Check RecognitionManager Status
+    const rm = RecognitionManager.getInstance();
+    const status = rm.getStatus();
+    // transcribing is also a "ready" state (worker is alive)
+    const isReady = status === 'ready' || status === 'transcribing';
+
+    setServerStatus(isReady);
+
+    // Auto-load if idle?
+    if (status === 'idle') {
+      ensureModelLoaded();
+    }
+
+    // Update UI text based on status
+    // If loading, setStatusText is handled by progress callback usually.
+    // If ready, show Ready.
+    if (isReady && !isListeningRef.current) {
+      setStatusText('Ready');
+    } else if (status === 'error' && !isListeningRef.current) {
+      setStatusText('Model Error (Check Logs)');
+    }
+
+    if (isReady && !lastServerStatus.current) {
+      addSystemLog('Speech Recognition Model is Ready');
+      // Validate config
+      const cfg = (await window.electronAPI.loadConfig()) as any;
+      if (!cfg?.llm?.apiKey && cfg?.llm?.provider === 'groq') {
+        addSystemLog('WARNING: Groq API Key is missing. Translation to JP might fail.');
+      }
+    } else if (!isReady && status !== 'loading' && lastServerStatus.current === true) {
+      addSystemLog('Speech Recognition Model unloaded or error.');
+    }
+
+    lastServerStatus.current = isReady;
+  }, [addSystemLog, ensureModelLoaded, isListeningRef, setStatusText]); // removed statusText dep to avoid loops if needed
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    checkServer();
-    const intervalId = setInterval(() => {
-      checkServer();
-    }, 5000);
+    // Attach progress listener
+    if (!isListenerAttached.current) {
+      RecognitionManager.getInstance().setOnProgress((p: RecognitionProgress) => {
+        // Update status text with progress
+        if (p.status) {
+          if (p.progress !== undefined && p.progress < 100) {
+            setStatusText(`${p.status} (${Math.round(p.progress || 0)}%)`);
+          } else {
+            setStatusText(p.status);
+          }
+        }
+      });
+      isListenerAttached.current = true;
+    }
 
-    window.electronAPI.onDownloadProgress((msg: string) => {
-      setStatusText(msg);
-    });
+    // Initial check
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void checkServer();
+    const intervalId = setInterval(checkServer, 5000);
 
     return () => clearInterval(intervalId);
   }, [checkServer, setStatusText]);
 
+  const reloadModel = useCallback(async () => {
+    try {
+      const config = (await window.electronAPI.loadConfig()) as any;
+      if (config?.whisper) {
+        await RecognitionManager.getInstance().loadModel(config.whisper);
+      }
+    } catch (e) {
+      console.error('Reload model failed', e);
+    }
+  }, []);
+
   return {
     serverStatus,
     overlayStatus,
-    statusText,
+    statusText, // returned from hook args usually, but here we don't manage it locally except via setStatusText side effects
     setStatusText,
     checkServer,
+    reloadModel,
   };
 }

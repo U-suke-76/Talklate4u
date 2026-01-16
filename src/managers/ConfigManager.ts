@@ -8,14 +8,12 @@ import { PathUtils } from '../utils/PathUtils';
 const AppConfigSchema = z.object({
   whisper: z.object({
     model: z.string(),
+    models: z.record(z.string(), z.string()).optional(), // language code -> model ID
     language: z.string(),
-    serverPort: z.number(),
-    extraArgs: z.string().optional(),
-    binPath: z.string().optional(),
-    systemPrompt: z.string().optional(),
     provider: z.enum(['local', 'groq', 'openai']).default('local'),
     apiKey: z.string().optional(),
     baseUrl: z.string().optional(),
+    device: z.enum(['webgpu', 'wasm']).default('wasm'),
   }),
   llm: z.object({
     provider: z.enum(['groq', 'openai']),
@@ -97,7 +95,9 @@ export class ConfigManager {
       const rawConfig = fs.readFileSync(configDefaultPath, 'utf-8');
       const parsed = JSON.parse(rawConfig);
       // Default config should be valid, but verify anyway
+      console.log('[ConfigManager] Validating defaults...');
       defaults = AppConfigSchema.parse(parsed);
+      console.log('[ConfigManager] Validating defaults... OK');
       console.log('[ConfigManager] Loaded defaults from:', configDefaultPath);
     } catch (error) {
       console.warn(
@@ -106,7 +106,17 @@ export class ConfigManager {
       );
       // Fallback to avoid crash, though functionality might be limited
       defaults = {
-        whisper: { model: 'ggml-base.bin', language: 'ja', serverPort: 8081, provider: 'local' },
+        whisper: {
+          model: 'Xenova/whisper-small',
+          models: {
+            ja: 'Xenova/whisper-small',
+            en: 'Xenova/whisper-small',
+            default: 'Xenova/whisper-small',
+          },
+          language: 'auto',
+          provider: 'local',
+          device: 'wasm',
+        },
         llm: { provider: 'groq', apiKey: '', model: 'llama-3.3-70b-versatile' },
         translation: { targetLang: 'auto' },
         vad: {
@@ -150,6 +160,44 @@ export class ConfigManager {
         // For now, warn but keep running, maybe the schema is stricter than actual usage
       } else {
         console.log('[ConfigManager] Config validation passed');
+      }
+
+      // Auto-migration: Fix invalid local model IDs (openai/ -> onnx-community/)
+      const currentConfig = this.store.store;
+      let configChanged = false;
+      const fixModelId = (id: string) => {
+        if (id.includes('kotoba-tech/kotoba-whisper'))
+          return 'onnx-community/kotoba-whisper-v2.2-ONNX';
+        if (id.startsWith('openai/whisper-large-v3-turbo'))
+          return 'onnx-community/whisper-large-v3-turbo';
+        // Check for other openai/ models only if we are sure? Let's just fix the turbo one primarily.
+        return id;
+      };
+
+      if (currentConfig.whisper) {
+        const newModel = fixModelId(currentConfig.whisper.model);
+        if (newModel !== currentConfig.whisper.model) {
+          currentConfig.whisper.model = newModel;
+          configChanged = true;
+        }
+
+        if (currentConfig.whisper.models) {
+          const newJa = fixModelId(currentConfig.whisper.models.ja);
+          if (newJa !== currentConfig.whisper.models.ja) {
+            currentConfig.whisper.models.ja = newJa;
+            configChanged = true;
+          }
+          const newDefault = fixModelId(currentConfig.whisper.models.default || '');
+          if (newDefault !== (currentConfig.whisper.models.default || '')) {
+            currentConfig.whisper.models.default = newDefault;
+            configChanged = true;
+          }
+        }
+
+        if (configChanged) {
+          console.log('[ConfigManager] Migrated legacy model IDs to ONNX format');
+          this.store.store = currentConfig;
+        }
       }
     } catch (e) {
       console.error('[ConfigManager] Validation error', e);
