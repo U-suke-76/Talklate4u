@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
 import { GlossarySettings, GlossaryEntry } from './GlossarySettings';
+import { OverlaySettingsComponents, OverlayStyles } from './OverlaySettingsComponents';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -40,6 +41,10 @@ interface AppConfig {
     minSpeechMs: number;
     volumeThreshold?: number;
   };
+  overlay: {
+    port: number;
+    styles?: OverlayStyles;
+  };
   glossary?: GlossaryEntry[];
 }
 
@@ -75,6 +80,19 @@ const DEFAULT_CONFIG: AppConfig = {
     minSpeechMs: 250,
     volumeThreshold: 0,
   },
+  overlay: {
+    port: 9000,
+    styles: {
+      align: 'left',
+      fontSize: 16,
+      originalColor: '#ffffff',
+      originalStrokeColor: '#000000',
+      translatedColor: '#38bdf8',
+      translatedStrokeColor: '#0c4a6e',
+      backgroundColor: 'transparent',
+      displayFormat: '%1(%2)',
+    } as OverlayStyles,
+  },
   glossary: [],
 };
 
@@ -88,9 +106,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [models, setModels] = useState<WhisperModel[]>([]);
   const [allMics, setAllMics] = useState<MicrophoneEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'general' | 'whisper' | 'llm' | 'vad' | 'glossary'>(
-    'general',
-  );
+  const [activeTab, setActiveTab] = useState<
+    'general' | 'whisper' | 'llm' | 'vad' | 'glossary' | 'overlay'
+  >('general');
 
   const loadData = React.useCallback(async () => {
     const current = await window.electronAPI.loadConfig();
@@ -123,6 +141,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         llm: migratedLLM || (current as AppConfig).llm || DEFAULT_CONFIG.llm,
         translation: (current as AppConfig).translation || DEFAULT_CONFIG.translation,
         vad: { ...DEFAULT_CONFIG.vad, ...((current as AppConfig).vad || {}) },
+        overlay: {
+          ...DEFAULT_CONFIG.overlay,
+          ...((current as AppConfig).overlay || {}),
+          styles: {
+            ...DEFAULT_CONFIG.overlay.styles,
+            ...(((current as AppConfig).overlay || {}).styles || {}),
+          },
+        },
         glossary: (current as AppConfig).glossary || [],
       };
 
@@ -763,6 +789,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </a>
           <a
             role="tab"
+            className={`tab ${activeTab === 'overlay' ? 'tab-active' : ''}`}
+            onClick={() => setActiveTab('overlay')}
+          >
+            Overlay
+          </a>
+          <a
+            role="tab"
             className={`tab ${activeTab === 'glossary' ? 'tab-active' : ''}`}
             onClick={() => setActiveTab('glossary')}
           >
@@ -774,6 +807,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {activeTab === 'whisper' && renderWhisperTab()}
         {activeTab === 'llm' && renderLLMTab()}
         {activeTab === 'vad' && renderVADTab()}
+        {activeTab === 'overlay' && (
+          <OverlaySettingsComponents
+            styles={config.overlay.styles || (DEFAULT_CONFIG.overlay.styles as OverlayStyles)}
+            onChange={(newStyles) =>
+              setConfig({
+                ...config,
+                overlay: { ...config.overlay, styles: newStyles },
+              })
+            }
+          />
+        )}
         {activeTab === 'glossary' && (
           <GlossarySettings
             entries={config.glossary || []}

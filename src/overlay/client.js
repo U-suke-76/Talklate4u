@@ -5,8 +5,18 @@ const socket = io();
 const container = document.getElementById('container');
 // MAX_LINES and REMOVE_TIMEOUT removed as we now use off-screen detection
 
+let currentDisplayFormat = '%1(%2)';
+
 socket.on('connect', () => {
   console.log('Connected to Overlay Server');
+});
+
+socket.on('initial_style', (styles) => {
+  applyStyles(styles);
+});
+
+socket.on('style_update', (styles) => {
+  applyStyles(styles);
 });
 
 socket.on('translation', (data) => {
@@ -14,21 +24,39 @@ socket.on('translation', (data) => {
   addSubtitle(data.original, data.translation);
 });
 
+function applyStyles(styles) {
+  if (!styles) return;
+  const root = document.documentElement;
+  
+  if (styles.align) root.style.setProperty('--align', styles.align);
+  if (styles.fontSize) root.style.setProperty('--font-size', styles.fontSize + 'px');
+  if (styles.originalColor) root.style.setProperty('--original-color', styles.originalColor);
+  if (styles.originalStrokeColor) root.style.setProperty('--original-stroke-color', styles.originalStrokeColor);
+  if (styles.translatedColor) root.style.setProperty('--translated-color', styles.translatedColor);
+  if (styles.translatedStrokeColor) root.style.setProperty('--translated-stroke-color', styles.translatedStrokeColor);
+  if (styles.backgroundColor) root.style.setProperty('--background-color', styles.backgroundColor);
+  
+  if (styles.displayFormat) currentDisplayFormat = styles.displayFormat;
+}
+
 function addSubtitle(original, translation) {
   const div = document.createElement('div');
   div.classList.add('subtitle-line');
 
-  // Create the content: "Original / <span class='dst-text'>Translation</span>"
-  // Handle potential null/undefined just in case, though TS shouldn't send it if properly typed
+  // Create the content based on format
   const srcText = original || '';
   const dstText = translation || '';
+  
+  // Replace %1 with original text, %2 with wrapped translation text
+  // We wrap %2 in a span with .dst-text class for styling
+  let formattedHTML = currentDisplayFormat
+    .replace(/%1/g, srcText)
+    .replace(/%2/g, `<span class="dst-text">${dstText}</span>`);
 
-  // Use innerHTML to allow span for color
-  div.innerHTML = `${srcText}<span class="dst-text">(${dstText})</span>`;
+  div.innerHTML = formattedHTML;
   container.appendChild(div);
 
   // Run cleanup immediately and synchronously to ensure the new message is visible.
-  // This forces a layout reflow, which is acceptable for this use case.
   cleanupMessages();
 }
 

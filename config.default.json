@@ -31,6 +31,16 @@
     "minSpeechMs": 500
   },
   "overlay": {
-    "port": 9000
+    "port": 9000,
+    "styles": {
+      "align": "left",
+      "fontSize": 16,
+      "originalColor": "#ffffff",
+      "originalStrokeColor": "#000000",
+      "translatedColor": "#38bdf8",
+      "translatedStrokeColor": "#0c4a6e",
+      "backgroundColor": "transparent",
+      "displayFormat": "%1(%2)"
+    }
   }
 }

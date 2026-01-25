@@ -1,9 +1,19 @@
+:root {
+  --align: left;
+  --font-size: 16px;
+  --original-color: #ffffff;
+  --original-stroke-color: #000000;
+  --translated-color: #38bdf8;
+  --translated-stroke-color: #0c4a6e;
+  --background-color: transparent;
+}
+
 html {
   height: 100%;
 }
 
 body {
-  background-color: transparent;
+  background-color: var(--background-color);
   margin: 0;
   padding: 0;
   width: 100%;
@@ -16,56 +26,40 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  align-items: flex-start; /* Align left */
+  align-items: flex-start; /* Align left default, but text-align helps too */
   width: 100%;
-  height: 100%; /* Changed from 100vh to 100% */
-  padding-bottom: 0; /* Removed padding */
-  box-sizing: border-box; /* Ensure padding doesn't affect width if added later */
+  height: 100%;
+  padding-bottom: 0;
+  box-sizing: border-box;
 }
 
 .subtitle-line {
-  /* Removed background box styles */
   background: transparent;
   box-shadow: none;
   border-radius: 0;
 
-  /* White text with black outline */
-  color: #ffffff;
-  /* White text with black outline using text-stroke for sharpness */
-  color: #ffffff;
-  -webkit-text-stroke: 3px black;
+  color: var(--original-color);
+  -webkit-text-stroke: 3px var(--original-stroke-color);
   paint-order: stroke fill;
-  /* text-shadow:
-    -2px -2px 0 #000,
-    2px -2px 0 #000,
-    -2px 2px 0 #000,
-    2px 2px 0 #000; */
+
   /* Right: 10px (half), Left: 30px (increased) */
   padding: 5px 10px 5px 30px;
-  box-sizing: border-box; /* Ensure padding is included in width */
+  box-sizing: border-box;
   margin-bottom: 5px;
 
-  font-size: 16px; /* Slightly larger for better readability without box */
-  font-weight: 800; /* Bolder font */
+  font-size: var(--font-size);
+  font-weight: 800;
   width: 100%;
-  text-align: left;
+  text-align: var(--align);
 
-  /* Animation */
   opacity: 0;
   transform: translateY(20px);
   animation: fadeInUp 0.5s forwards;
 }
 
-/* Updated translation style to just match base style (white text) */
-.subtitle-line.translation {
-  color: #ffffff;
-  border-left: none;
-}
-
-/* Blue text for translation part */
 .dst-text {
-  color: #38bdf8; /* Tailwind sky-400 */
-  -webkit-text-stroke: 3px #0c4a6e; /* Tailwind sky-900 (Deep Blue) */
+  color: var(--translated-color);
+  -webkit-text-stroke: 3px var(--translated-stroke-color);
 }
 
 @keyframes fadeInUp {

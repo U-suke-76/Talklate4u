@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - docs: Added rule to `target.md` requiring `CHANGELOG.md` updates.
 
+## [0.0.3] - 2026-01-25
+
+### Added
+
+- feat: Added overlay display settings.
+
 ## [0.0.2] - 2026-01-12
 
 ### Added

@@ -37,6 +37,19 @@ const AppConfigSchema = z.object({
 
   overlay: z.object({
     port: z.number(),
+    styles: z
+      .object({
+        align: z.enum(['left', 'center', 'right']).default('left'),
+        fontSize: z.number().default(16),
+        originalColor: z.string().default('#ffffff'),
+        originalStrokeColor: z.string().default('#000000'),
+        translatedColor: z.string().default('#38bdf8'),
+        translatedStrokeColor: z.string().default('#0c4a6e'),
+        backgroundColor: z.string().default('transparent'),
+        displayFormat: z.string().default('%1(%2)'),
+      })
+      .optional()
+      .default({}),
   }),
   app: z.object({
     defaultMicName: z.string(),
@@ -117,7 +130,19 @@ export class ConfigManager {
           volumeThreshold: 0,
         },
 
-        overlay: { port: 9000 },
+        overlay: {
+          port: 9000,
+          styles: {
+            align: 'left',
+            fontSize: 16,
+            originalColor: '#ffffff',
+            originalStrokeColor: '#000000',
+            translatedColor: '#38bdf8',
+            translatedStrokeColor: '#0c4a6e',
+            backgroundColor: 'transparent',
+            displayFormat: '%1(%2)',
+          },
+        },
         app: { defaultMicName: '' },
         glossary: [],
       } as AppConfig;

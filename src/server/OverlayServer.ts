@@ -7,13 +7,17 @@ export class OverlayServer {
   private httpServer: HttpServer | null = null;
   private io: SocketIOServer | null = null;
   private port: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private currentStyles: any = {};
 
   constructor(port = 3000) {
     this.app = express();
     this.port = port;
   }
 
-  start(staticPath: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  start(staticPath: string, initialStyles: any = {}) {
+    this.currentStyles = initialStyles;
     // Serve static files (HTML, CSS, JS) from the overlay directory
     this.app.use(express.static(staticPath));
 
@@ -27,6 +31,8 @@ export class OverlayServer {
 
     this.io.on('connection', (socket) => {
       console.log('[Overlay] Client connected:', socket.id);
+      // Send current styles immediately upon connection
+      socket.emit('initial_style', this.currentStyles);
 
       socket.on('disconnect', () => {
         console.log('[Overlay] Client disconnected:', socket.id);
@@ -36,6 +42,12 @@ export class OverlayServer {
     this.httpServer.listen(this.port, () => {
       console.log(`[Overlay] Server running at http://localhost:${this.port}`);
     });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  updateStyles(styles: any) {
+    this.currentStyles = styles;
+    this.broadcast('style_update', styles);
   }
 
   stop() {

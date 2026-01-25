@@ -100,7 +100,11 @@ app.on('ready', () => {
     ? path.join(PROJECT_ROOT, 'src', 'overlay')
     : path.join(__dirname, 'overlay');
   console.log('Starting Overlay Server with path:', overlayPath);
-  overlayServer.start(overlayPath);
+  
+  // Pass initial styles
+  const currentConfig = configManager.getConfig();
+  const initialStyles = currentConfig.overlay?.styles || {};
+  overlayServer.start(overlayPath, initialStyles);
 
   if (mainWindow) {
     new MenuManager(mainWindow).buildMenu();
@@ -129,6 +133,12 @@ ipcMain.handle('save-config', async (e, newConfig) => {
   try {
     configManager.save(newConfig);
     translationService.resetClient();
+    
+    // Broadcast style update
+    if (newConfig.overlay?.styles) {
+      overlayServer.updateStyles(newConfig.overlay.styles);
+    }
+
     console.log('[App] Config saved & services updated');
     return { success: true };
   } catch (err) {
