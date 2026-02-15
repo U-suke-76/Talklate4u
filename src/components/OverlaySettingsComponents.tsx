@@ -103,6 +103,7 @@ export const OverlaySettingsComponents: React.FC<OverlaySettingsProps> = ({ styl
       {/* Font Size */}
       <label className="font-bold text-gray-300">Font Size ({styles.fontSize}px)</label>
       <input
+        aria-label="Font Size"
         type="range"
         min="12"
         max="72"
@@ -116,12 +117,14 @@ export const OverlaySettingsComponents: React.FC<OverlaySettingsProps> = ({ styl
       <label className="font-bold text-gray-300 pl-4">Text Color</label>
       <div className="flex gap-2">
         <input
+          aria-label="Original Text Color"
           type="color"
           value={styles.originalColor}
           onChange={(e) => handleChange('originalColor', e.target.value)}
           className="w-8 h-8 rounded cursor-pointer"
         />
         <input
+          aria-label="Original Text Color Code"
           type="text"
           value={styles.originalColor}
           onChange={(e) => handleChange('originalColor', e.target.value)}
@@ -132,12 +135,14 @@ export const OverlaySettingsComponents: React.FC<OverlaySettingsProps> = ({ styl
       <label className="font-bold text-gray-300 pl-4">Stroke Color</label>
       <div className="flex gap-2">
         <input
+          aria-label="Original Stroke Color"
           type="color"
           value={styles.originalStrokeColor}
           onChange={(e) => handleChange('originalStrokeColor', e.target.value)}
           className="w-8 h-8 rounded cursor-pointer"
         />
         <input
+          aria-label="Original Stroke Color Code"
           type="text"
           value={styles.originalStrokeColor}
           onChange={(e) => handleChange('originalStrokeColor', e.target.value)}
@@ -150,12 +155,14 @@ export const OverlaySettingsComponents: React.FC<OverlaySettingsProps> = ({ styl
       <label className="font-bold text-gray-300 pl-4">Text Color</label>
       <div className="flex gap-2">
         <input
+          aria-label="Translated Text Color"
           type="color"
           value={styles.translatedColor}
           onChange={(e) => handleChange('translatedColor', e.target.value)}
           className="w-8 h-8 rounded cursor-pointer"
         />
         <input
+          aria-label="Translated Text Color Code"
           type="text"
           value={styles.translatedColor}
           onChange={(e) => handleChange('translatedColor', e.target.value)}
@@ -166,12 +173,14 @@ export const OverlaySettingsComponents: React.FC<OverlaySettingsProps> = ({ styl
       <label className="font-bold text-gray-300 pl-4">Stroke Color</label>
       <div className="flex gap-2">
         <input
+          aria-label="Translated Stroke Color"
           type="color"
           value={styles.translatedStrokeColor}
           onChange={(e) => handleChange('translatedStrokeColor', e.target.value)}
           className="w-8 h-8 rounded cursor-pointer"
         />
         <input
+          aria-label="Translated Stroke Color Code"
           type="text"
           value={styles.translatedStrokeColor}
           onChange={(e) => handleChange('translatedStrokeColor', e.target.value)}
@@ -184,6 +193,7 @@ export const OverlaySettingsComponents: React.FC<OverlaySettingsProps> = ({ styl
       <label className="font-bold text-gray-300 pl-4">Background</label>
       <div className="flex gap-2 items-center">
         <input
+          aria-label="Background Color"
           type="text"
           value={styles.backgroundColor}
           onChange={(e) => handleChange('backgroundColor', e.target.value)}
@@ -202,6 +212,7 @@ export const OverlaySettingsComponents: React.FC<OverlaySettingsProps> = ({ styl
       <label className="font-bold text-gray-300">Display Format</label>
       <div className="flex flex-col gap-1 w-full">
         <input
+          aria-label="Display Format"
           type="text"
           value={styles.displayFormat}
           onChange={(e) => handleChange('displayFormat', e.target.value)}
