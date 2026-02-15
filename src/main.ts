@@ -24,8 +24,7 @@ if (squirrelStartup) {
 log.initialize();
 const IS_DEV = process.env.NODE_ENV === 'development';
 const PROJECT_ROOT = process.cwd();
-const APP_ROOT = IS_DEV ? PROJECT_ROOT : path.dirname(app.getPath('exe'));
-const LOGS_DIR = path.join(APP_ROOT, 'logs');
+const LOGS_DIR = path.join(app.getPath('userData'), 'logs');
 
 if (!fs.existsSync(LOGS_DIR)) {
   try {

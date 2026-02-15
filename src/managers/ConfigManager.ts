@@ -1,9 +1,21 @@
+import { app } from 'electron';
 import Store from 'electron-store';
 import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
 
 import { PathUtils } from '../utils/PathUtils';
+
+const DEFAULT_OVERLAY_STYLES = {
+  align: 'left' as const,
+  fontSize: 16,
+  originalColor: '#ffffff',
+  originalStrokeColor: '#000000',
+  translatedColor: '#38bdf8',
+  translatedStrokeColor: '#0c4a6e',
+  backgroundColor: 'transparent',
+  displayFormat: '%1(%2)',
+};
 
 const AppConfigSchema = z.object({
   whisper: z.object({
@@ -39,17 +51,17 @@ const AppConfigSchema = z.object({
     port: z.number(),
     styles: z
       .object({
-        align: z.enum(['left', 'center', 'right']).default('left'),
-        fontSize: z.number().default(16),
-        originalColor: z.string().default('#ffffff'),
-        originalStrokeColor: z.string().default('#000000'),
-        translatedColor: z.string().default('#38bdf8'),
-        translatedStrokeColor: z.string().default('#0c4a6e'),
-        backgroundColor: z.string().default('transparent'),
-        displayFormat: z.string().default('%1(%2)'),
+        align: z.enum(['left', 'center', 'right']).default(DEFAULT_OVERLAY_STYLES.align),
+        fontSize: z.number().default(DEFAULT_OVERLAY_STYLES.fontSize),
+        originalColor: z.string().default(DEFAULT_OVERLAY_STYLES.originalColor),
+        originalStrokeColor: z.string().default(DEFAULT_OVERLAY_STYLES.originalStrokeColor),
+        translatedColor: z.string().default(DEFAULT_OVERLAY_STYLES.translatedColor),
+        translatedStrokeColor: z.string().default(DEFAULT_OVERLAY_STYLES.translatedStrokeColor),
+        backgroundColor: z.string().default(DEFAULT_OVERLAY_STYLES.backgroundColor),
+        displayFormat: z.string().default(DEFAULT_OVERLAY_STYLES.displayFormat),
       })
       .optional()
-      .default({}),
+      .default(DEFAULT_OVERLAY_STYLES),
   }),
   app: z.object({
     defaultMicName: z.string(),
@@ -87,7 +99,9 @@ export class ConfigManager {
     // Parse command line arguments for --config
     const args = process.argv;
     const projectRoot = process.cwd();
-    let configCwd = projectRoot;
+    
+    // Default to undefined (userData) in production, but projectRoot in dev
+    let configCwd: string | undefined = app.isPackaged ? undefined : projectRoot;
     let configName = 'config';
 
     for (const arg of args) {
