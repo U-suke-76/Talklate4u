@@ -379,7 +379,10 @@ export class WhisperManager extends EventEmitter {
         if (config.whisper.baseUrl) baseUrl = config.whisper.baseUrl;
 
         formData.append('model', model);
-        // formData.append('language', config.whisper.language || 'ja'); // Optional: force language if needed, but auto is usually better
+        const lang = config.whisper.language;
+        if (lang && lang !== 'auto') {
+          formData.append('language', lang);
+        }
         // Response format verbose_json allows us to get language? Or text is fine?
         // Groq/OpenAI default response is JSON { text: "..." }
         // To get language, we might need response_format='verbose_json'

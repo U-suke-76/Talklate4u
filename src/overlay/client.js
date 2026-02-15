@@ -27,15 +27,17 @@ socket.on('translation', (data) => {
 function applyStyles(styles) {
   if (!styles) return;
   const root = document.documentElement;
-  
+
   if (styles.align) root.style.setProperty('--align', styles.align);
   if (styles.fontSize) root.style.setProperty('--font-size', styles.fontSize + 'px');
   if (styles.originalColor) root.style.setProperty('--original-color', styles.originalColor);
-  if (styles.originalStrokeColor) root.style.setProperty('--original-stroke-color', styles.originalStrokeColor);
+  if (styles.originalStrokeColor)
+    root.style.setProperty('--original-stroke-color', styles.originalStrokeColor);
   if (styles.translatedColor) root.style.setProperty('--translated-color', styles.translatedColor);
-  if (styles.translatedStrokeColor) root.style.setProperty('--translated-stroke-color', styles.translatedStrokeColor);
+  if (styles.translatedStrokeColor)
+    root.style.setProperty('--translated-stroke-color', styles.translatedStrokeColor);
   if (styles.backgroundColor) root.style.setProperty('--background-color', styles.backgroundColor);
-  
+
   if (styles.displayFormat) currentDisplayFormat = styles.displayFormat;
 }
 
@@ -46,7 +48,7 @@ function addSubtitle(original, translation) {
   // Create the content based on format
   const srcText = original || '';
   const dstText = translation || '';
-  
+
   // Replace %1 with original text, %2 with wrapped translation text
   // We wrap %2 in a span with .dst-text class for styling
   let formattedHTML = currentDisplayFormat

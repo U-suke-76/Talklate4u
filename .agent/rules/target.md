@@ -28,6 +28,7 @@ trigger: always_on
 - **Documentation**: Record changes in `CHANGELOG.md` following standard changelog conventions.
 
   Additionally, please strictly adhere to the following implementation rules:
+
 - **Coding Standards**: Follow the project's coding conventions and ensure there are no lint errors or warnings.
 - **Tech Stack**: Implementations must comply with Tailwind CSS v4 and DaisyUI v5 specifications (e.g., using @import instead of @tailwind directives).
 - **TypeScript**: Actively utilize features of TypeScript 5.x.
