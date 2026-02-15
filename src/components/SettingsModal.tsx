@@ -755,7 +755,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div className="modal modal-open">
-      <div className="modal-box bg-base-800 border border-gray-700 w-11/12 max-w-3xl">
+      <div className="modal-box bg-gray-800 border border-gray-700 w-11/12 max-w-3xl">
         <h3 className="font-bold text-lg text-primary mb-4">Settings</h3>
 
         <div role="tablist" className="tabs tabs-boxed bg-gray-900 mb-4">
