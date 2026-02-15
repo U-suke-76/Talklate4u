@@ -40,7 +40,7 @@ const timestampStr = startTime.toISOString().replace(/[:.]/g, '-');
 const LOG_FILE_NAME = `session_${timestampStr}.log`;
 
 log.transports.file.resolvePathFn = () => path.join(LOGS_DIR, LOG_FILE_NAME);
-log.transports.file.level = app.isPackaged ? false : 'debug';
+log.transports.file.level = app.isPackaged ? 'info' : 'debug';
 log.transports.console.format = '[{h}:{i}:{s}.{ms}] {text}';
 log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
 
