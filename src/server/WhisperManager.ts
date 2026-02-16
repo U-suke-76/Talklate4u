@@ -365,6 +365,11 @@ export class WhisperManager extends EventEmitter {
         contentType: 'audio/wav',
       });
 
+      if (config.whisper.systemPrompt && config.whisper.systemPrompt.trim().length > 0) {
+        formData.append('prompt', config.whisper.systemPrompt);
+        console.debug(`[WhisperManager] Using System Prompt: "${config.whisper.systemPrompt}"`);
+      }
+
       if (provider === 'groq' || provider === 'openai') {
         const apiKey = config.whisper.apiKey;
         if (!apiKey) {
@@ -383,6 +388,7 @@ export class WhisperManager extends EventEmitter {
         if (lang && lang !== 'auto') {
           formData.append('language', lang);
         }
+
         // Response format verbose_json allows us to get language? Or text is fine?
         // Groq/OpenAI default response is JSON { text: "..." }
         // To get language, we might need response_format='verbose_json'
@@ -424,11 +430,6 @@ export class WhisperManager extends EventEmitter {
       } else {
         // LOCAL
         const port = config.whisper.serverPort || 8081;
-
-        if (config.whisper.systemPrompt && config.whisper.systemPrompt.trim().length > 0) {
-          formData.append('prompt', config.whisper.systemPrompt);
-          console.debug(`[WhisperManager] Using System Prompt: "${config.whisper.systemPrompt}"`);
-        }
 
         // Cast config object to AxiosRequestConfig to handle potential type discrepancies with maxBodyLength
         const axiosConfig: AxiosRequestConfig = {
