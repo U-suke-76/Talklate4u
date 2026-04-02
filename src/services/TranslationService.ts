@@ -288,9 +288,10 @@ export class TranslationService {
             (id.startsWith('llama-') ||
               id.startsWith('gemma') ||
               id.startsWith('mixtral') ||
-              id.startsWith('qwen/') ||
+              id.startsWith('meta-llama/llama-') ||
               id.startsWith('openai/')) &&
-            !id.includes('safeguard'), // Exclude safeguard models
+            !id.includes('safeguard') && // Exclude safeguard models
+            !id.includes('prompt-guard'), // Exclude prompt-guard models
         );
 
       // Sort by size descending
