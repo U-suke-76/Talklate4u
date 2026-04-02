@@ -47,29 +47,20 @@ export const OverlaySettingsComponents: React.FC<OverlaySettingsProps> = ({ styl
             {/* Simulation of Text Rendering based on format would be complex here due to HTML parsing, 
                 so we just show a static example or try to render simpler version. 
                 Let's emulate the structure roughly. */}
-            {styles.displayFormat.includes('%1') && (
-              <span
-                style={{
-                  color: styles.originalColor,
-                  WebkitTextStroke: `3px ${styles.originalStrokeColor}`,
-                  paintOrder: 'stroke fill',
-                  marginRight: '8px',
-                }}
-              >
-                Original Text
-              </span>
-            )}
-            {styles.displayFormat.includes('%2') && (
-              <span
-                style={{
-                  color: styles.translatedColor,
-                  WebkitTextStroke: `3px ${styles.translatedStrokeColor}`,
-                  paintOrder: 'stroke fill',
-                }}
-              >
-                (翻訳テキスト)
-              </span>
-            )}
+            <div
+              dangerouslySetInnerHTML={{
+                __html: styles.displayFormat
+                  .replace(
+                    /([([{]?\s*%2\s*[)\]}]?)/g,
+                    `<span style="color: ${styles.translatedColor}; -webkit-text-stroke: 3px ${styles.translatedStrokeColor}; paint-order: stroke fill;">$1</span>`
+                  )
+                  .replace(
+                    /%1/g,
+                    `<span style="color: ${styles.originalColor}; -webkit-text-stroke: 3px ${styles.originalStrokeColor}; paint-order: stroke fill;">Original Text</span>`
+                  )
+                  .replace(/%2/g, '翻訳テキスト'),
+              }}
+            />
             {!styles.displayFormat.includes('%1') && !styles.displayFormat.includes('%2') && (
               <span style={{ color: 'red' }}>Invalid Format</span>
             )}

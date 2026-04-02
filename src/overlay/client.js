@@ -49,11 +49,12 @@ function addSubtitle(original, translation) {
   const srcText = original || '';
   const dstText = translation || '';
 
-  // Replace %1 with original text, %2 with wrapped translation text
-  // We wrap %2 in a span with .dst-text class for styling
+  // Replace %1 with original text
+  // Extract %2 along with any surrounding brackets or spaces and wrap it in dst-text
   let formattedHTML = currentDisplayFormat
+    .replace(/([([{]?\s*%2\s*[)\]}]?)/g, `<span class="dst-text">$1</span>`)
     .replace(/%1/g, srcText)
-    .replace(/%2/g, `<span class="dst-text">${dstText}</span>`);
+    .replace(/%2/g, dstText);
 
   div.innerHTML = formattedHTML;
   container.appendChild(div);
