@@ -11,9 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- feat: Added `<think>` tag removal logic and content-based retry loop
+  (with temperature increment) in `TranslationService.ts` to support
+  Qwen/DeepSeek reasoning models.
 - refactor: Unified system prompt injection logic in `WhisperManager.ts`.
 - fix: Updated Groq model filtering in `TranslationService.ts`
-  (replaced `qwen/` with `meta-llama` and excluded `prompt-guard`).
+  (add `meta-llama` and excluded `prompt-guard`).
 - ui: Apply translated text color to surrounding brackets/parenthesis in the overlay.
 - ui: Changed overlay background color behavior to apply only to subtitle lines.
 

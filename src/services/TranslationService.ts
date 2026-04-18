@@ -202,31 +202,57 @@ export class TranslationService {
 
         console.log(`[TranslationService] Sending request: "${text}" (Model: ${modelToUse})`);
 
-        const completion = await client.chat.completions.create({
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: text },
-          ],
-          model: modelToUse,
-          temperature: 0.3,
-          stop: ['<|'],
-        });
+        const maxGenRetries = 3;
+        let cleanText = '';
+        let duration = 0;
 
-        const end = Date.now();
-        const duration = end - start;
-        const result = completion.choices[0]?.message?.content || '';
+        for (let genAttempt = 1; genAttempt <= maxGenRetries; genAttempt++) {
+          const currentTemperature = 0.2 + (genAttempt - 1) * 0.1;
 
-        console.log(`[TRANS] [${duration}ms] ${text} -> ${result}`);
+          const completion = await client.chat.completions.create({
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: text },
+            ],
+            model: modelToUse,
+            temperature: Number(currentTemperature.toFixed(1)),
+            stop: ['<|'],
+          });
 
-        console.debug(`[TranslationService] LLM response:`, JSON.stringify(completion, null, 2));
+          const end = Date.now();
+          duration = end - start;
+          const result = completion.choices[0]?.message?.content || '';
 
-        // External Integrations
-        if (result) {
-          // Overlay
-          this.overlayServer.broadcast('translation', { original: text, translation: result });
+          console.debug(`[TranslationService] LLM response (raw):`, result);
+          console.debug(
+            `[TranslationService] LLM response (JSON):`,
+            JSON.stringify(completion, null, 2),
+          );
+
+          // <think> タグとその中身を削除（完了せずに途切れた場合も考慮）
+          cleanText = result.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim();
+
+          if (cleanText) {
+            break; // 正常に内容が抽出できたのでループを抜ける
+          } else {
+            console.warn(
+              `[TranslationService] Attempt ${genAttempt} failed: Text became empty after filtering. Retrying...`,
+            );
+            if (genAttempt === maxGenRetries) {
+              throw new Error('Could not obtain a valid result after tag removal.');
+            }
+          }
         }
 
-        return { text: result };
+        console.log(`[TRANS] [${duration}ms] ${text} -> ${cleanText}`);
+
+        // External Integrations
+        if (cleanText) {
+          // Overlay
+          this.overlayServer.broadcast('translation', { original: text, translation: cleanText });
+        }
+
+        return { text: cleanText };
       } catch (err: unknown) {
         console.error(
           `[LLM Error] (Model: ${isAuto ? availableModels[this.currentModelIndex % availableModels.length] : currentModel})`,
@@ -288,6 +314,7 @@ export class TranslationService {
             (id.startsWith('llama-') ||
               id.startsWith('gemma') ||
               id.startsWith('mixtral') ||
+              id.startsWith('qwen/') ||
               id.startsWith('meta-llama/llama-') ||
               id.startsWith('openai/')) &&
             !id.includes('safeguard') && // Exclude safeguard models
