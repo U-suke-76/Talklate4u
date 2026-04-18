@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix: Updated Groq model filtering in `TranslationService.ts`
   (replaced `qwen/` with `meta-llama` and excluded `prompt-guard`).
 - ui: Apply translated text color to surrounding brackets/parenthesis in the overlay.
+- ui: Changed overlay background color behavior to apply only to subtitle lines.
 
 ### Fixed
 

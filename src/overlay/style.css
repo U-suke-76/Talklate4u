@@ -13,7 +13,7 @@ html {
 }
 
 body {
-  background-color: var(--background-color);
+  background-color: transparent;
   margin: 0;
   padding: 0;
   width: 100%;
@@ -34,9 +34,9 @@ body {
 }
 
 .subtitle-line {
-  background: transparent;
+  background-color: var(--background-color);
   box-shadow: none;
-  border-radius: 0;
+  border-radius: 4px;
 
   color: var(--original-color);
   -webkit-text-stroke: 3px var(--original-stroke-color);

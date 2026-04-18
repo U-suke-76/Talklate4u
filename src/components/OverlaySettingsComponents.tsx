@@ -52,11 +52,11 @@ export const OverlaySettingsComponents: React.FC<OverlaySettingsProps> = ({ styl
                 __html: styles.displayFormat
                   .replace(
                     /([([{]?\s*%2\s*[)\]}]?)/g,
-                    `<span style="color: ${styles.translatedColor}; -webkit-text-stroke: 3px ${styles.translatedStrokeColor}; paint-order: stroke fill;">$1</span>`
+                    `<span style="color: ${styles.translatedColor}; -webkit-text-stroke: 3px ${styles.translatedStrokeColor}; paint-order: stroke fill;">$1</span>`,
                   )
                   .replace(
                     /%1/g,
-                    `<span style="color: ${styles.originalColor}; -webkit-text-stroke: 3px ${styles.originalStrokeColor}; paint-order: stroke fill;">Original Text</span>`
+                    `<span style="color: ${styles.originalColor}; -webkit-text-stroke: 3px ${styles.originalStrokeColor}; paint-order: stroke fill;">Original Text</span>`,
                   )
                   .replace(/%2/g, '翻訳テキスト'),
               }}
