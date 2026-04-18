@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-04-18
+
 ### Changed
 
 - feat: Added `<think>` tag removal logic and content-based retry loop

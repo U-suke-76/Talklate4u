@@ -99,7 +99,7 @@ export class ConfigManager {
     // Parse command line arguments for --config
     const args = process.argv;
     const projectRoot = process.cwd();
-    
+
     // Default to undefined (userData) in production, but projectRoot in dev
     let configCwd: string | undefined = app.isPackaged ? undefined : projectRoot;
     let configName = 'config';
