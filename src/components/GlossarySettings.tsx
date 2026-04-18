@@ -45,7 +45,7 @@ export const GlossarySettings: React.FC<GlossarySettingsProps> = ({ entries, onC
 
   return (
     <div className="p-4 space-y-4">
-      <h4 className="text-md font-bold text-gray-300">Gaming Glossary / Dictionary</h4>
+      <h4 className="text-md font-bold text-gray-300">Glossary / Dictionary</h4>
       <p className="text-sm text-gray-500">
         Define custom translations for game terms. Use <b>Bi-directional (⇔)</b> to apply the rule
         in both translation directions.
