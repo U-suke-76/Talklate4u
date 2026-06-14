@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- feat: Added subtitle limit (maxLines) and automatic fadeout (fadeTimeout) settings.
+- feat: Added Custom CSS support for the overlay with a togglable checkbox and CSS code editor, disabling other inputs when active.
+
+### Changed
+
+- ui: Restructured overlay layout to apply background-color only to text width (inline-block wrapper) instead of full viewport width.
+
+### Fixed
+
+- fix: Added missing aria-label to Custom CSS checkbox to resolve accessibility warning.
+
 ## [0.0.4] - 2026-04-18
 
 ### Changed

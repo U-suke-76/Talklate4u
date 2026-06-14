@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 
 import { GlossarySettings, GlossaryEntry } from './GlossarySettings';
-import { OverlaySettingsComponents, OverlayStyles } from './OverlaySettingsComponents';
+import {
+  OverlaySettingsComponents,
+  OverlayStyles,
+  DEFAULT_CUSTOM_CSS,
+} from './OverlaySettingsComponents';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -91,6 +95,10 @@ const DEFAULT_CONFIG: AppConfig = {
       translatedStrokeColor: '#0c4a6e',
       backgroundColor: 'transparent',
       displayFormat: '%1(%2)',
+      maxLines: 0,
+      fadeTimeout: 0,
+      useCustomCSS: false,
+      customCSS: DEFAULT_CUSTOM_CSS,
     } as OverlayStyles,
   },
   glossary: [],

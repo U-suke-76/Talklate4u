@@ -5,7 +5,11 @@ const socket = io();
 const container = document.getElementById('container');
 // MAX_LINES and REMOVE_TIMEOUT removed as we now use off-screen detection
 
+// MAX_LINES and REMOVE_TIMEOUT variables added back for configurable settings
 let currentDisplayFormat = '%1(%2)';
+let currentMaxLines = 0;
+let currentFadeTimeout = 0;
+let customStyleTag = null;
 
 socket.on('connect', () => {
   console.log('Connected to Overlay Server');
@@ -39,11 +43,39 @@ function applyStyles(styles) {
   if (styles.backgroundColor) root.style.setProperty('--background-color', styles.backgroundColor);
 
   if (styles.displayFormat) currentDisplayFormat = styles.displayFormat;
+
+  if (styles.maxLines !== undefined) {
+    currentMaxLines = parseInt(styles.maxLines, 10) || 0;
+  }
+  if (styles.fadeTimeout !== undefined) {
+    currentFadeTimeout = parseInt(styles.fadeTimeout, 10) || 0;
+  }
+
+  // Handle Custom CSS dynamic injection
+  if (styles.useCustomCSS && styles.customCSS) {
+    if (!customStyleTag) {
+      customStyleTag = document.createElement('style');
+      customStyleTag.id = 'custom-overlay-styles';
+      document.head.appendChild(customStyleTag);
+    }
+    customStyleTag.textContent = styles.customCSS;
+  } else {
+    if (customStyleTag) {
+      customStyleTag.textContent = '';
+    }
+  }
 }
 
 function addSubtitle(original, translation) {
   const div = document.createElement('div');
   div.classList.add('subtitle-line');
+
+  // Fade out event listener to clean up DOM after animation finishes
+  div.addEventListener('animationend', (e) => {
+    if (e.animationName === 'fadeOut') {
+      div.remove();
+    }
+  });
 
   // Create the content based on format
   const srcText = original || '';
@@ -56,8 +88,32 @@ function addSubtitle(original, translation) {
     .replace(/%1/g, srcText)
     .replace(/%2/g, dstText);
 
-  div.innerHTML = formattedHTML;
+  div.innerHTML = `<span class="subtitle-content">${formattedHTML}</span>`;
+
+  // Apply max lines rule BEFORE appending the new element to container.
+  // This triggers the fade-out on the oldest message first, making room and sliding remaining lines up.
+  const activeLines = Array.from(container.getElementsByClassName('subtitle-line')).filter(
+    (line) => !line.classList.contains('fade-out'),
+  );
+
+  if (currentMaxLines > 0 && activeLines.length >= currentMaxLines) {
+    const overflowCount = activeLines.length + 1 - currentMaxLines;
+    for (let i = 0; i < overflowCount; i++) {
+      activeLines[i].classList.add('fade-out');
+    }
+  }
+
+  // Now append the new subtitle to the container
   container.appendChild(div);
+
+  // Apply timeout fade
+  if (currentFadeTimeout > 0) {
+    setTimeout(() => {
+      if (div && !div.classList.contains('fade-out')) {
+        div.classList.add('fade-out');
+      }
+    }, currentFadeTimeout * 1000);
+  }
 
   // Run cleanup immediately and synchronously to ensure the new message is visible.
   cleanupMessages();

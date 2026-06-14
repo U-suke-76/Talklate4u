@@ -15,6 +15,10 @@ const DEFAULT_OVERLAY_STYLES = {
   translatedStrokeColor: '#0c4a6e',
   backgroundColor: 'transparent',
   displayFormat: '%1(%2)',
+  maxLines: 0,
+  fadeTimeout: 0,
+  useCustomCSS: false,
+  customCSS: '',
 };
 
 const AppConfigSchema = z.object({
@@ -59,6 +63,10 @@ const AppConfigSchema = z.object({
         translatedStrokeColor: z.string().default(DEFAULT_OVERLAY_STYLES.translatedStrokeColor),
         backgroundColor: z.string().default(DEFAULT_OVERLAY_STYLES.backgroundColor),
         displayFormat: z.string().default(DEFAULT_OVERLAY_STYLES.displayFormat),
+        maxLines: z.number().default(DEFAULT_OVERLAY_STYLES.maxLines),
+        fadeTimeout: z.number().default(DEFAULT_OVERLAY_STYLES.fadeTimeout),
+        useCustomCSS: z.boolean().default(DEFAULT_OVERLAY_STYLES.useCustomCSS),
+        customCSS: z.string().default(DEFAULT_OVERLAY_STYLES.customCSS),
       })
       .optional()
       .default(DEFAULT_OVERLAY_STYLES),

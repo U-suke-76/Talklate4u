@@ -40,7 +40,11 @@
       "translatedColor": "#38bdf8",
       "translatedStrokeColor": "#0c4a6e",
       "backgroundColor": "transparent",
-      "displayFormat": "%1(%2)"
+      "displayFormat": "%1(%2)",
+      "maxLines": 0,
+      "fadeTimeout": 0,
+      "useCustomCSS": false,
+      "customCSS": ""
     }
   }
 }
