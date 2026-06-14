@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - feat: Added subtitle limit (maxLines) and automatic fadeout (fadeTimeout) settings.
 - feat: Added Custom CSS support for the overlay with a togglable checkbox and CSS code editor, disabling other inputs when active.
+- feat: Enabled `dotenv` in Electron Forge config to automatically load `GITHUB_TOKEN` from local `.env` file during publish.
 
 ### Changed
 
