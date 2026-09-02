@@ -7,8 +7,9 @@
   "llm": {
     "provider": "groq",
     "apiKey": "",
-    "model": "llama-3.3-70b-versatile",
-    "baseUrl": ""
+    "model": "auto",
+    "baseUrl": "",
+    "groqModels": []
   },
   "translation": {
     "targetLang": "auto"

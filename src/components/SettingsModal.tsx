@@ -73,7 +73,7 @@ const DEFAULT_CONFIG: AppConfig = {
     apiKey: '',
     baseUrl: '',
   },
-  llm: { provider: 'groq', apiKey: '', model: 'llama-3.3-70b-versatile' },
+  llm: { provider: 'groq', apiKey: '', model: 'auto', groqModels: [] },
   translation: { targetLang: 'auto' },
   app: { defaultMicName: '' },
 
@@ -138,7 +138,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         migratedLLM = {
           provider: 'groq',
           apiKey: rawConfig.groq.apiKey || '',
-          model: rawConfig.groq.model || 'llama-3.3-70b-versatile',
+          model: rawConfig.groq.model || 'auto',
           groqModels: [],
         };
       }
@@ -161,6 +161,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       };
 
       setConfig(merged);
+
+      // Auto-fetch Groq models if apiKey is provided but groqModels is empty
+      if (
+        merged.llm?.provider === 'groq' &&
+        merged.llm.apiKey &&
+        (!merged.llm.groqModels || merged.llm.groqModels.length === 0)
+      ) {
+        window.electronAPI
+          .getGroqModels(merged.llm.apiKey)
+          .then((fetched) => {
+            if (fetched && fetched.length > 0) {
+              setConfig((prev) => ({
+                ...prev,
+                llm: { ...prev.llm, groqModels: fetched },
+              }));
+            }
+          })
+          .catch((err) => {
+            console.warn('Failed to auto-fetch Groq models on load:', err);
+          });
+      }
     }
     const m = (await window.electronAPI.getWhisperModels()) as WhisperModel[];
     setModels(m);
@@ -207,10 +228,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const getGroqOptions = () => {
-    const defaults = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
-    const list =
-      config.llm.groqModels && config.llm.groqModels.length > 0 ? config.llm.groqModels : defaults;
-    return Array.from(new Set(['auto', ...list, ...defaults]));
+    const list = config.llm.groqModels || [];
+    return Array.from(new Set(['auto', ...list]));
   };
 
   const handleSave = async () => {
@@ -605,32 +624,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         Model
       </label>
       {config.llm.provider === 'groq' ? (
-        <div className="flex gap-2">
-          <select
-            id="llm-model"
-            className="select select-bordered w-full"
-            value={config.llm.model}
-            onChange={(e) =>
-              setConfig({
-                ...config,
-                llm: { ...config.llm, model: e.target.value },
-              })
-            }
-          >
-            {getGroqOptions().map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <button
-            className="btn btn-sm btn-secondary"
-            onClick={handleFetchGroqModels}
-            disabled={isLoading || !config.llm.apiKey}
-            title="Update Model List"
-          >
-            ↻
-          </button>
+        <div className="flex flex-col gap-1 w-full">
+          <div className="flex gap-2 w-full">
+            <select
+              id="llm-model"
+              className="select select-bordered w-full"
+              value={config.llm.model}
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  llm: { ...config.llm, model: e.target.value },
+                })
+              }
+            >
+              {getGroqOptions().map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn btn-sm btn-secondary"
+              onClick={handleFetchGroqModels}
+              disabled={isLoading || !config.llm.apiKey}
+              title="Update Model List"
+            >
+              ↻
+            </button>
+          </div>
+          {(!config.llm.groqModels || config.llm.groqModels.length === 0) && (
+            <p className="text-xs text-warning">
+              {!config.llm.apiKey
+                ? '※ API Key を入力後、右側の更新ボタン（↻）を押してモデル一覧を取得してください。'
+                : '※ モデル一覧が未取得です。右側の更新ボタン（↻）を押して取得してください。'}
+            </p>
+          )}
         </div>
       ) : (
         <input

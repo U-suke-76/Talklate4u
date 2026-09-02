@@ -167,16 +167,36 @@ export class TranslationService {
     }
 
     const config = ConfigManager.getInstance().getConfig();
-    const currentModel = config.llm?.model || 'llama-3.3-70b-versatile';
+    const currentModel = config.llm?.model || 'auto';
     const isGroq = config.llm.provider === 'groq';
     const isAuto = currentModel === 'auto' && isGroq;
 
     let availableModels: string[] = [];
     if (isAuto) {
-      availableModels =
-        config.llm.groqModels && config.llm.groqModels.length > 0
-          ? config.llm.groqModels
-          : ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']; // Fallback
+      if (config.llm.groqModels && config.llm.groqModels.length > 0) {
+        availableModels = config.llm.groqModels;
+      } else if (config.llm.apiKey) {
+        try {
+          const fetched = await this.getGroqModels(config.llm.apiKey);
+          if (fetched && fetched.length > 0) {
+            availableModels = fetched;
+            ConfigManager.getInstance().save({
+              ...config,
+              llm: { ...config.llm, groqModels: fetched },
+            });
+          }
+        } catch (e) {
+          console.warn('[TranslationService] Failed to auto-fetch Groq models:', e);
+        }
+      }
+    }
+
+    if (isAuto && availableModels.length === 0) {
+      return {
+        text: null,
+        error:
+          'No Groq models available. Please configure your API Key and fetch models in Settings.',
+      };
     }
 
     // retry loop
@@ -321,11 +341,14 @@ export class TranslationService {
             !id.includes('prompt-guard'), // Exclude prompt-guard models
         );
 
-      // Sort by size descending
+      // Sort by size descending, with localeCompare for deterministic order
       const sorted = filtered.sort((a, b) => {
         const sizeA = this.getModelSize(a);
         const sizeB = this.getModelSize(b);
-        return sizeB - sizeA; // Descending
+        if (sizeB !== sizeA) {
+          return sizeB - sizeA; // Descending
+        }
+        return a.localeCompare(b);
       });
 
       return sorted;

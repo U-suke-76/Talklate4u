@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- feat: Added dynamic model fetching for Groq with automatic on-demand fetch and background sync in settings.
+- ui: Added warning / guidance message under Model selector when models are not yet fetched.
+
+### Changed
+
+- refactor: Changed default LLM model to `auto` and removed hardcoded fallback models (e.g. Llama) to support dynamic cloud model lineups.
+- refactor: Added deterministic tie-breaking by name for Groq models with identical parameter counts.
+
 ## [0.0.5] - 2026-06-14
 
 ### Added

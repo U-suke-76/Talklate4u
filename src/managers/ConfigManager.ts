@@ -142,7 +142,7 @@ export class ConfigManager {
       // Fallback to avoid crash, though functionality might be limited
       defaults = {
         whisper: { model: 'ggml-base.bin', language: 'ja', serverPort: 8081, provider: 'local' },
-        llm: { provider: 'groq', apiKey: '', model: 'llama-3.3-70b-versatile' },
+        llm: { provider: 'groq', apiKey: '', model: 'auto', groqModels: [] },
         translation: { targetLang: 'auto' },
         vad: {
           silenceDurationMs: 500,
