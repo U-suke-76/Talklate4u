@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - refactor: Changed default LLM model to `auto` and removed hardcoded fallback models (e.g. Llama) to support dynamic cloud model lineups.
 - refactor: Added deterministic tie-breaking by name for Groq models with identical parameter counts.
+- chore(deps): Updated Electron from 33 to 44 and `@ricky0123/vad-web` to 0.0.31.
+- chore(deps): Updated in-range dependencies (Electron Forge 7.11, socket.io 4.8.4, axios 1.20, openai 6.49, zod 4.6, tailwindcss 4.3, etc.). Resolved all production dependency vulnerabilities reported by `npm audit`.
+
+### Fixed
+
+- fix: VAD options `minSpeechMs` / `redemptionMs` were passed with obsolete names (`minSpeechFrames` / `redemptionFrames`) and may not have been applied. Now passed with the current `vad-web` option names.
+- fix: Removed obsolete `modelURL` / `workletURL` VAD options (no effect with current `vad-web`).
+- fix: Added missing overlay style fields to the fallback default config in `ConfigManager`.
+- fix: Resolved TypeScript errors (axios header type, overlay styles typing) and `react-hooks/set-state-in-effect` lint errors.
 
 ## [0.0.5] - 2026-06-14
 
