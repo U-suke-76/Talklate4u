@@ -155,7 +155,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           styles: {
             ...DEFAULT_CONFIG.overlay.styles,
             ...(((current as AppConfig).overlay || {}).styles || {}),
-          },
+          } as AppConfig['overlay']['styles'],
         },
         glossary: (current as AppConfig).glossary || [],
       };
@@ -198,6 +198,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      // Async load on open; state is set after awaiting IPC, not synchronously.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadData();
     }
   }, [isOpen, loadData]);

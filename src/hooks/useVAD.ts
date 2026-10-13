@@ -51,12 +51,10 @@ export function useVAD() {
         navigator.mediaDevices.getUserMedia = patchedGetUserMedia;
 
         myvad.current = await MicVAD.new({
-          modelURL: '/silero_vad_v5.onnx',
-          workletURL: '/vad.worklet.bundle.min.js',
           positiveSpeechThreshold: options.positiveSpeechThreshold,
           negativeSpeechThreshold: options.negativeSpeechThreshold,
-          minSpeechFrames: Math.max(1, Math.round(options.minSpeechMs / 32)),
-          redemptionFrames: Math.max(1, Math.round(options.silenceDurationMs / 32)),
+          minSpeechMs: options.minSpeechMs,
+          redemptionMs: options.silenceDurationMs,
           onSpeechStart: () => {
             setIsProcessing(true);
           },

@@ -72,6 +72,7 @@ export function useMicrophone(onLog?: (msg: string) => void) {
   // Initial load
   // Initial load
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadMicrophones();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

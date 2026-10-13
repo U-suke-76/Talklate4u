@@ -76,7 +76,7 @@ export function useServerStatus(
   }, [addSystemLog, isListeningRef, setStatusText, statusText]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
     checkServer();
     const intervalId = setInterval(() => {
       checkServer();
