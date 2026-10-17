@@ -167,26 +167,31 @@ export const OverlaySettingsComponents: React.FC<OverlaySettingsProps> = ({ styl
               }}
             >
               <div>
-                {styles.displayFormat.split(/([([{]?\s*%2\s*[)\]}]?|%1)/g).map((part, index) => {
-                  if (part === '%1') {
-                    return <span key={index}>Original Text</span>;
-                  }
-                  if (part.includes('%2')) {
-                    return (
-                      <span
-                        key={index}
-                        style={{
-                          color: styles.translatedColor,
-                          WebkitTextStroke: `3px ${styles.translatedStrokeColor}`,
-                          paintOrder: 'stroke fill',
-                        }}
-                      >
-                        {part.replace(/%2/g, '翻訳テキスト')}
-                      </span>
-                    );
-                  }
-                  return <React.Fragment key={index}>{part}</React.Fragment>;
-                })}
+                {styles.displayFormat
+                  .split(/(<br\s*\/?>|\r?\n|[([{]?\s*%2\s*[)\]}]?|%1)/gi)
+                  .map((part, index) => {
+                    if (/^(<br\s*\/?>|\r?\n)$/i.test(part)) {
+                      return <br key={index} />;
+                    }
+                    if (part === '%1') {
+                      return <span key={index}>Original Text</span>;
+                    }
+                    if (part.includes('%2')) {
+                      return (
+                        <span
+                          key={index}
+                          style={{
+                            color: styles.translatedColor,
+                            WebkitTextStroke: `3px ${styles.translatedStrokeColor}`,
+                            paintOrder: 'stroke fill',
+                          }}
+                        >
+                          {part.replace(/%2/g, '翻訳テキスト')}
+                        </span>
+                      );
+                    }
+                    return <React.Fragment key={index}>{part}</React.Fragment>;
+                  })}
               </div>
               {!styles.displayFormat.includes('%1') && !styles.displayFormat.includes('%2') && (
                 <span style={{ color: 'red' }}>Invalid Format</span>

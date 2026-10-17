@@ -86,7 +86,10 @@ function escapeHtml(str) {
 function buildSubtitleHTML(original, translation, pending) {
   const srcText = escapeHtml(original || '');
   const dstText = escapeHtml(translation || '');
-  const safeFormat = escapeHtml(currentDisplayFormat);
+  // Escape displayFormat for safety, but restore <br> / <br/> / \n as actual <br> line breaks
+  const safeFormat = escapeHtml(currentDisplayFormat)
+    .replace(/&lt;br\s*\/?&gt;/gi, '<br>')
+    .replace(/\r?\n/g, '<br>');
   const dstClass = pending ? 'dst-text pending' : 'dst-text';
 
   const formattedHTML = safeFormat

@@ -32,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- security: Escaped HTML entities in overlay `client.js` and replaced `dangerouslySetInnerHTML` with safe React node rendering in `OverlaySettingsComponents.tsx` to prevent XSS and layout corruption.
+- security: Escaped HTML entities in recognized/translated text in overlay `client.js` and replaced `dangerouslySetInnerHTML` with safe React node rendering in `OverlaySettingsComponents.tsx` (while preserving `<br>` line breaks in `displayFormat`) to prevent XSS and layout corruption.
 - fix: VAD options `minSpeechMs` / `redemptionMs` were passed with obsolete names (`minSpeechFrames` / `redemptionFrames`) and may not have been applied. Now passed with the current `vad-web` option names.
 - fix: Removed obsolete `modelURL` / `workletURL` VAD options (no effect with current `vad-web`).
 - fix: Added missing overlay style fields to the fallback default config in `ConfigManager`.
