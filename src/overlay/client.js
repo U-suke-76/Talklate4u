@@ -66,6 +66,15 @@ function applyStyles(styles) {
   }
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function addSubtitle(original, translation) {
   const div = document.createElement('div');
   div.classList.add('subtitle-line');
@@ -77,16 +86,18 @@ function addSubtitle(original, translation) {
     }
   });
 
-  // Create the content based on format
-  const srcText = original || '';
-  const dstText = translation || '';
+  // Create the content based on format (escaped to prevent XSS / broken HTML)
+  const srcText = escapeHtml(original || '');
+  const dstText = escapeHtml(translation || '');
 
-  // Replace %1 with original text
+  // Escape the display format itself first, then apply placeholders
+  const safeFormat = escapeHtml(currentDisplayFormat);
+
   // Extract %2 along with any surrounding brackets or spaces and wrap it in dst-text
-  let formattedHTML = currentDisplayFormat
+  const formattedHTML = safeFormat
     .replace(/([([{]?\s*%2\s*[)\]}]?)/g, `<span class="dst-text">$1</span>`)
-    .replace(/%1/g, srcText)
-    .replace(/%2/g, dstText);
+    .replace(/%1/g, () => srcText)
+    .replace(/%2/g, () => dstText);
 
   div.innerHTML = `<span class="subtitle-content">${formattedHTML}</span>`;
 

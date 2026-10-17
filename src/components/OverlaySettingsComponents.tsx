@@ -155,6 +155,9 @@ export const OverlaySettingsComponents: React.FC<OverlaySettingsProps> = ({ styl
             <div
               style={{
                 backgroundColor: styles.backgroundColor,
+                color: styles.originalColor,
+                WebkitTextStroke: `3px ${styles.originalStrokeColor}`,
+                paintOrder: 'stroke fill',
                 fontSize: `${styles.fontSize}px`,
                 fontWeight: 800,
                 marginBottom: '4px',
@@ -163,20 +166,28 @@ export const OverlaySettingsComponents: React.FC<OverlaySettingsProps> = ({ styl
                 display: 'inline-block',
               }}
             >
-              <div
-                dangerouslySetInnerHTML={{
-                  __html: styles.displayFormat
-                    .replace(
-                      /([([{]?\s*%2\s*[)\]}]?)/g,
-                      `<span style="color: ${styles.translatedColor}; -webkit-text-stroke: 3px ${styles.translatedStrokeColor}; paint-order: stroke fill;">$1</span>`,
-                    )
-                    .replace(
-                      /%1/g,
-                      `<span style="color: ${styles.originalColor}; -webkit-text-stroke: 3px ${styles.originalStrokeColor}; paint-order: stroke fill;">Original Text</span>`,
-                    )
-                    .replace(/%2/g, '翻訳テキスト'),
-                }}
-              />
+              <div>
+                {styles.displayFormat.split(/([([{]?\s*%2\s*[)\]}]?|%1)/g).map((part, index) => {
+                  if (part === '%1') {
+                    return <span key={index}>Original Text</span>;
+                  }
+                  if (part.includes('%2')) {
+                    return (
+                      <span
+                        key={index}
+                        style={{
+                          color: styles.translatedColor,
+                          WebkitTextStroke: `3px ${styles.translatedStrokeColor}`,
+                          paintOrder: 'stroke fill',
+                        }}
+                      >
+                        {part.replace(/%2/g, '翻訳テキスト')}
+                      </span>
+                    );
+                  }
+                  return <React.Fragment key={index}>{part}</React.Fragment>;
+                })}
+              </div>
               {!styles.displayFormat.includes('%1') && !styles.displayFormat.includes('%2') && (
                 <span style={{ color: 'red' }}>Invalid Format</span>
               )}

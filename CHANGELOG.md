@@ -18,11 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - refactor: Changed default LLM model to `auto` and removed hardcoded fallback models (e.g. Llama) to support dynamic cloud model lineups.
 - refactor: Added deterministic tie-breaking by name for Groq models with identical parameter counts.
+- refactor: Improved short utterance (<10 chars) language detection in `detectLanguage.ts` using Unicode script detection (Hangul, Hiragana/Katakana, ASCII) before falling back to `franc`.
+- chore(deps): Moved runtime packages (`axios`, `dotenv`, `electron-log`, `electron-store`, `form-data`, `franc`, `handlebars`, `openai`, `zod`, etc.) from `devDependencies` to `dependencies` in `package.json`.
 - chore(deps): Updated Electron from 33 to 44 and `@ricky0123/vad-web` to 0.0.31.
 - chore(deps): Updated in-range dependencies (Electron Forge 7.11, socket.io 4.8.4, axios 1.20, openai 6.49, zod 4.6, tailwindcss 4.3, etc.). Resolved all production dependency vulnerabilities reported by `npm audit`.
 
 ### Fixed
 
+- security: Escaped HTML entities in overlay `client.js` and replaced `dangerouslySetInnerHTML` with safe React node rendering in `OverlaySettingsComponents.tsx` to prevent XSS and layout corruption.
 - fix: VAD options `minSpeechMs` / `redemptionMs` were passed with obsolete names (`minSpeechFrames` / `redemptionFrames`) and may not have been applied. Now passed with the current `vad-web` option names.
 - fix: Removed obsolete `modelURL` / `workletURL` VAD options (no effect with current `vad-web`).
 - fix: Added missing overlay style fields to the fallback default config in `ConfigManager`.

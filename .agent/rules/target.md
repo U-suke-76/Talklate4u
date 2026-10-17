@@ -1,4 +1,4 @@
-﻿---
+---
 trigger: always_on
 ---
 
@@ -25,7 +25,7 @@ trigger: always_on
 
 - **Verification**: If your changes affect **three or more files**, you are REQUIRED to suggest/execute `npm run lint` to ensure cross-file consistency.
 - **Final Touch**: Propose or remind to run `npm run format` after any file modification to maintain the codebase.
-- **Documentation**: Record changes in `CHANGELOG.md` following standard changelog conventions.
+- **Documentation (Mandatory)**: Whenever you make any changes to the codebase or configuration (features, bug fixes, refactoring, dependency updates, etc.), you **MUST** always update `CHANGELOG.md` (under the `## [Unreleased]` section) in the same turn without waiting to be asked, following Keep a Changelog conventions.
 
   Additionally, please strictly adhere to the following implementation rules:
 
