@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix: Removed obsolete `modelURL` / `workletURL` VAD options (no effect with current `vad-web`).
 - fix: Added missing overlay style fields to the fallback default config in `ConfigManager`.
 - fix: Resolved TypeScript errors (axios header type, overlay styles typing) and `react-hooks/set-state-in-effect` lint errors.
+- fix: Fallback selected Groq model to `auto` when the model is no longer present after refetching models.
 
 ## [0.0.5] - 2026-06-14
 

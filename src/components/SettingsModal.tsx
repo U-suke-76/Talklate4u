@@ -174,7 +174,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             if (fetched && fetched.length > 0) {
               setConfig((prev) => ({
                 ...prev,
-                llm: { ...prev.llm, groqModels: fetched },
+                llm: {
+                  ...prev.llm,
+                  groqModels: fetched,
+                  model:
+                    prev.llm.model !== 'auto' && !fetched.includes(prev.llm.model)
+                      ? 'auto'
+                      : prev.llm.model,
+                },
               }));
             }
           })
@@ -213,11 +220,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     try {
       const models = await window.electronAPI.getGroqModels(config.llm.apiKey);
       if (models && models.length > 0) {
+        const currentModel = config.llm.model;
+        const modelRemoved = currentModel !== 'auto' && !models.includes(currentModel);
         setConfig((prev) => ({
           ...prev,
-          llm: { ...prev.llm, groqModels: models },
+          llm: {
+            ...prev.llm,
+            groqModels: models,
+            model: modelRemoved ? 'auto' : prev.llm.model,
+          },
         }));
-        alert(`Fetched ${models.length} models.`);
+        if (modelRemoved) {
+          alert(
+            `Fetched ${models.length} models.\nSelected model "${currentModel}" is no longer available. Switched to "auto".`,
+          );
+        } else {
+          alert(`Fetched ${models.length} models.`);
+        }
       } else {
         alert('No models found matching criteria.');
       }
