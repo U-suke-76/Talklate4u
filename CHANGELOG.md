@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-10-17
+
 ### Added
 
 - feat: Added sliding conversation history (up to 6 turns / 2-minute TTL) and ASR recognition error recovery instructions in `TranslationService.ts` and `system_prompt.txt` for context-aware translations.
