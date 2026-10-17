@@ -39,6 +39,15 @@ export const GlossarySettings: React.FC<GlossarySettingsProps> = ({ entries, onC
     onChange(entries.filter((e) => e.id !== id));
   };
 
+  const handleMove = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= entries.length) return;
+    const updated = [...entries];
+    const [moved] = updated.splice(index, 1);
+    updated.splice(targetIndex, 0, moved);
+    onChange(updated);
+  };
+
   const toggleDirection = () => {
     setNewEntry((prev) => ({ ...prev, bidirectional: !prev.bidirectional }));
   };
@@ -46,10 +55,14 @@ export const GlossarySettings: React.FC<GlossarySettingsProps> = ({ entries, onC
   return (
     <div className="p-4 space-y-4">
       <h4 className="text-md font-bold text-gray-300">Glossary / Dictionary</h4>
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-gray-400">
         Define custom translations for game terms. Use <b>Bi-directional (⇔)</b> to apply the rule
         in both translation directions.
       </p>
+      <div className="text-xs text-info bg-gray-800/80 border border-info/30 rounded px-3 py-2">
+        💡 <b>Tip:</b> Terms placed higher in the list are also prioritized for{' '}
+        <b>Whisper speech recognition accuracy</b> (when Input Language is set to a fixed language).
+      </div>
 
       {/* Add New Entry Form */}
       {/* Grid Layout: SrcLang | SrcText | ToggleBtn | TargetText | DstLang | AddBtn */}
@@ -132,6 +145,7 @@ export const GlossarySettings: React.FC<GlossarySettingsProps> = ({ entries, onC
         <table className="table table-sm w-full bg-base-900 border border-gray-700">
           <thead>
             <tr className="bg-gray-800 text-gray-300">
+              <th className="w-20">Order</th>
               <th className="w-20">Dir</th>
               <th>Source</th>
               <th className="w-8"></th>
@@ -142,13 +156,35 @@ export const GlossarySettings: React.FC<GlossarySettingsProps> = ({ entries, onC
           <tbody>
             {entries.length === 0 && (
               <tr>
-                <td colSpan={5} className="text-center text-gray-500 py-4">
+                <td colSpan={6} className="text-center text-gray-500 py-4">
                   No entries. Add some terms above!
                 </td>
               </tr>
             )}
-            {entries.map((entry) => (
+            {entries.map((entry, idx) => (
               <tr key={entry.id} className="hover:bg-gray-800">
+                <td>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs px-1"
+                      onClick={() => handleMove(idx, 'up')}
+                      disabled={idx === 0}
+                      title="Move Up (Higher Priority)"
+                    >
+                      ⬆️
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs px-1"
+                      onClick={() => handleMove(idx, 'down')}
+                      disabled={idx === entries.length - 1}
+                      title="Move Down"
+                    >
+                      ⬇️
+                    </button>
+                  </div>
+                </td>
                 <td className="font-mono text-xs text-gray-400">
                   {entry.sourceLang.toUpperCase()}
                   {entry.bidirectional ? '⇔' : '➜'}

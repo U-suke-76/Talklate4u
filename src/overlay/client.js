@@ -24,8 +24,16 @@ socket.on('style_update', (styles) => {
 });
 
 socket.on('translation', (data) => {
-  // data: { original: string, translation: string }
-  addSubtitle(data.original, data.translation);
+  // data: { id?: string, original: string, translation: string, pending?: boolean }
+  addOrUpdateSubtitle(data.id, data.original, data.translation, data.pending);
+});
+
+socket.on('translation_remove', (data) => {
+  if (!data || !data.id) return;
+  const existing = document.getElementById(data.id);
+  if (existing && !existing.classList.contains('fade-out')) {
+    existing.classList.add('fade-out');
+  }
 });
 
 function applyStyles(styles) {
@@ -75,9 +83,52 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-function addSubtitle(original, translation) {
+function buildSubtitleHTML(original, translation, pending) {
+  const srcText = escapeHtml(original || '');
+  const dstText = escapeHtml(translation || '');
+  const safeFormat = escapeHtml(currentDisplayFormat);
+  const dstClass = pending ? 'dst-text pending' : 'dst-text';
+
+  const formattedHTML = safeFormat
+    .replace(/([([{]?\s*%2\s*[)\]}]?)/g, `<span class="${dstClass}">$1</span>`)
+    .replace(/%1/g, () => srcText)
+    .replace(/%2/g, () => dstText);
+
+  return `<span class="subtitle-content">${formattedHTML}</span>`;
+}
+
+function scheduleFadeOut(div) {
+  if (currentFadeTimeout > 0) {
+    if (div._fadeTimer) {
+      clearTimeout(div._fadeTimer);
+    }
+    div._fadeTimer = setTimeout(() => {
+      if (div && !div.classList.contains('fade-out')) {
+        div.classList.add('fade-out');
+      }
+    }, currentFadeTimeout * 1000);
+  }
+}
+
+function addOrUpdateSubtitle(id, original, translation, pending) {
+  // Check if an element with this id already exists (Stage 2 update)
+  if (id) {
+    const existing = document.getElementById(id);
+    if (existing) {
+      existing.innerHTML = buildSubtitleHTML(original, translation, pending);
+      if (!pending) {
+        scheduleFadeOut(existing);
+      }
+      cleanupMessages();
+      return;
+    }
+  }
+
   const div = document.createElement('div');
   div.classList.add('subtitle-line');
+  if (id) {
+    div.id = id;
+  }
 
   // Fade out event listener to clean up DOM after animation finishes
   div.addEventListener('animationend', (e) => {
@@ -86,20 +137,7 @@ function addSubtitle(original, translation) {
     }
   });
 
-  // Create the content based on format (escaped to prevent XSS / broken HTML)
-  const srcText = escapeHtml(original || '');
-  const dstText = escapeHtml(translation || '');
-
-  // Escape the display format itself first, then apply placeholders
-  const safeFormat = escapeHtml(currentDisplayFormat);
-
-  // Extract %2 along with any surrounding brackets or spaces and wrap it in dst-text
-  const formattedHTML = safeFormat
-    .replace(/([([{]?\s*%2\s*[)\]}]?)/g, `<span class="dst-text">$1</span>`)
-    .replace(/%1/g, () => srcText)
-    .replace(/%2/g, () => dstText);
-
-  div.innerHTML = `<span class="subtitle-content">${formattedHTML}</span>`;
+  div.innerHTML = buildSubtitleHTML(original, translation, pending);
 
   // Apply max lines rule BEFORE appending the new element to container.
   // This triggers the fade-out on the oldest message first, making room and sliding remaining lines up.
@@ -117,13 +155,9 @@ function addSubtitle(original, translation) {
   // Now append the new subtitle to the container
   container.appendChild(div);
 
-  // Apply timeout fade
-  if (currentFadeTimeout > 0) {
-    setTimeout(() => {
-      if (div && !div.classList.contains('fade-out')) {
-        div.classList.add('fade-out');
-      }
-    }, currentFadeTimeout * 1000);
+  // Start fade timer once finalized (or immediately if not using 2-stage pending)
+  if (!pending) {
+    scheduleFadeOut(div);
   }
 
   // Run cleanup immediately and synchronously to ensure the new message is visible.

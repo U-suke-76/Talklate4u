@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- feat: Added sliding conversation history (up to 6 turns / 2-minute TTL) and ASR recognition error recovery instructions in `TranslationService.ts` and `system_prompt.txt` for context-aware translations.
+- feat: Added automatic Glossary term injection into Whisper's `initial_prompt` (`prompt` parameter) in `WhisperManager.ts` with safe length clipping and `auto` language exclusion protection.
+- feat: Added 2-stage instant subtitle rendering in `TranslationService.ts` and `src/overlay/client.js` to display recognized speech on the OBS overlay immediately (`...`) and update the translation in-place upon LLM completion.
+- ui: Added priority reordering buttons (⬆️/⬇️) and Whisper recognition priority guidance tip to `GlossarySettings.tsx`.
+- test: Added Main process stdout and stderr logging to Playwright `fixtures.ts` to improve test diagnosability.
 - feat: Added dynamic model fetching for Groq with automatic on-demand fetch and background sync in settings.
 - ui: Added warning / guidance message under Model selector when models are not yet fetched.
 

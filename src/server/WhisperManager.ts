@@ -352,6 +352,54 @@ export class WhisperManager extends EventEmitter {
     }
   }
 
+  /**
+   * Builds the prompt for Whisper ASR by combining user systemPrompt and Glossary terms
+   * matching the configured input language. Skips Glossary injection when language is 'auto'
+   * to avoid biasing Whisper's initial language detection.
+   */
+  private buildWhisperPrompt(): string {
+    const config = ConfigManager.getInstance().getConfig();
+    const parts: string[] = [];
+
+    const customPrompt = config.whisper.systemPrompt?.trim();
+    if (customPrompt) {
+      parts.push(customPrompt);
+    }
+
+    const lang = config.whisper.language || 'auto';
+    // Skip glossary injection in 'auto' mode to prevent language detection lock-in bug
+    if (lang !== 'auto' && config.glossary && config.glossary.length > 0) {
+      const terms: string[] = [];
+      for (const entry of config.glossary) {
+        if (entry.sourceLang === lang && entry.sourceText.trim()) {
+          terms.push(entry.sourceText.trim());
+        } else if (entry.bidirectional && entry.targetLang === lang && entry.targetText.trim()) {
+          terms.push(entry.targetText.trim());
+        }
+      }
+
+      const uniqueTerms = Array.from(new Set(terms));
+      if (uniqueTerms.length > 0) {
+        const isCJK = lang === 'ja' || lang === 'zh' || lang === 'ko';
+        const separator = lang === 'ja' || lang === 'zh' ? '、' : ', ';
+        const maxChars = isCJK ? 100 : 400; // Safe clip under Whisper's 224-token limit
+
+        let glossaryStr = '';
+        for (const term of uniqueTerms) {
+          const candidate = glossaryStr ? `${glossaryStr}${separator}${term}` : term;
+          if (candidate.length > maxChars) break;
+          glossaryStr = candidate;
+        }
+
+        if (glossaryStr) {
+          parts.push(glossaryStr);
+        }
+      }
+    }
+
+    return parts.join(' ');
+  }
+
   public async transcribe(
     buffer: ArrayBuffer,
   ): Promise<{ text?: string; language?: string; error?: string; details?: string }> {
@@ -365,9 +413,10 @@ export class WhisperManager extends EventEmitter {
         contentType: 'audio/wav',
       });
 
-      if (config.whisper.systemPrompt && config.whisper.systemPrompt.trim().length > 0) {
-        formData.append('prompt', config.whisper.systemPrompt);
-        console.debug(`[WhisperManager] Using System Prompt: "${config.whisper.systemPrompt}"`);
+      const whisperPrompt = this.buildWhisperPrompt();
+      if (whisperPrompt.length > 0) {
+        formData.append('prompt', whisperPrompt);
+        console.debug(`[WhisperManager] Using Whisper Prompt: "${whisperPrompt}"`);
       }
 
       if (provider === 'groq' || provider === 'openai') {

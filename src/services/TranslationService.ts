@@ -10,11 +10,21 @@ import Handlebars from 'handlebars';
 import { PathUtils } from '../utils/PathUtils';
 import { PromptFactory } from './PromptFactory';
 
+interface ConversationTurn {
+  original: string;
+  translated: string;
+  timestamp: number;
+}
+
 export class TranslationService {
   private openaiClient: OpenAI | null = null;
   private overlayServer: OverlayServer;
   private promptTemplate: HandlebarsTemplateDelegate | null = null;
   private currentModelIndex = 0;
+  private subtitleIdCounter = 1;
+  private history: ConversationTurn[] = [];
+  private readonly MAX_HISTORY_TURNS = 6;
+  private readonly HISTORY_TTL_MS = 2 * 60 * 1000; // 2 minutes context window
 
   // Combined patterns from main.ts
   private readonly NOISE_PATTERNS = [
@@ -73,6 +83,25 @@ export class TranslationService {
 
   public resetClient() {
     this.openaiClient = null;
+    this.history = [];
+  }
+
+  private getActiveHistory(): ConversationTurn[] {
+    const now = Date.now();
+    this.history = this.history.filter((turn) => now - turn.timestamp <= this.HISTORY_TTL_MS);
+    return this.history;
+  }
+
+  private pushHistory(original: string, translated: string) {
+    this.getActiveHistory();
+    this.history.push({
+      original,
+      translated,
+      timestamp: Date.now(),
+    });
+    if (this.history.length > this.MAX_HISTORY_TURNS) {
+      this.history.shift();
+    }
   }
 
   private isNoiseOrHallucination(text: string): boolean {
@@ -166,6 +195,15 @@ export class TranslationService {
       return { text: null };
     }
 
+    // Stage 1 Overlay Broadcast: Immediately show recognized original text with pending indicator
+    const subtitleId = `sub-${Date.now()}-${this.subtitleIdCounter++}`;
+    this.overlayServer.broadcast('translation', {
+      id: subtitleId,
+      original: text,
+      translation: '...',
+      pending: true,
+    });
+
     const config = ConfigManager.getInstance().getConfig();
     const currentModel = config.llm?.model || 'auto';
     const isGroq = config.llm.provider === 'groq';
@@ -192,6 +230,7 @@ export class TranslationService {
     }
 
     if (isAuto && availableModels.length === 0) {
+      this.overlayServer.broadcast('translation_remove', { id: subtitleId });
       return {
         text: null,
         error:
@@ -211,16 +250,29 @@ export class TranslationService {
         }
 
         const client = this.getLLMClient();
-        if (!client) return { text: null, error: 'Client Init Failed' };
+        if (!client) {
+          this.overlayServer.broadcast('translation_remove', { id: subtitleId });
+          return { text: null, error: 'Client Init Failed' };
+        }
 
         const start = Date.now();
 
         const systemPrompt = this.getSystemPrompt(detectedLanguage);
-        console.log(`[TranslationService] System Prompt generated for lang="${detectedLanguage}"`);
+        const recentHistory = this.getActiveHistory();
+        console.log(
+          `[TranslationService] System Prompt generated for lang="${detectedLanguage}" (History turns: ${recentHistory.length})`,
+        );
 
         console.debug(`[TranslationService] LLM request systemPrompt:`, systemPrompt);
 
         console.log(`[TranslationService] Sending request: "${text}" (Model: ${modelToUse})`);
+
+        // Build multi-turn messages with recent conversation history for context continuity
+        const historyMessages: { role: 'user' | 'assistant'; content: string }[] = [];
+        for (const turn of recentHistory) {
+          historyMessages.push({ role: 'user', content: turn.original });
+          historyMessages.push({ role: 'assistant', content: turn.translated });
+        }
 
         const maxGenRetries = 3;
         let cleanText = '';
@@ -232,6 +284,7 @@ export class TranslationService {
           const completion = await client.chat.completions.create({
             messages: [
               { role: 'system', content: systemPrompt },
+              ...historyMessages,
               { role: 'user', content: text },
             ],
             model: modelToUse,
@@ -266,10 +319,17 @@ export class TranslationService {
 
         console.log(`[TRANS] [${duration}ms] ${text} -> ${cleanText}`);
 
-        // External Integrations
+        // Stage 2 Overlay Broadcast & History Update
         if (cleanText) {
-          // Overlay
-          this.overlayServer.broadcast('translation', { original: text, translation: cleanText });
+          this.pushHistory(text, cleanText);
+          this.overlayServer.broadcast('translation', {
+            id: subtitleId,
+            original: text,
+            translation: cleanText,
+            pending: false,
+          });
+        } else {
+          this.overlayServer.broadcast('translation_remove', { id: subtitleId });
         }
 
         return { text: cleanText };
@@ -292,11 +352,14 @@ export class TranslationService {
             this.currentModelIndex++; // Move to next model
             continue; // Retry loop
           }
+          this.overlayServer.broadcast('translation_remove', { id: subtitleId });
           return { text: null, error: 'Rate Limit Exceeded. Please wait.' };
         }
+        this.overlayServer.broadcast('translation_remove', { id: subtitleId });
         return { text: null, error: errorObj.message || String(err) };
       }
     }
+    this.overlayServer.broadcast('translation_remove', { id: subtitleId });
     return { text: null, error: 'Max retries exceeded' };
   }
 
