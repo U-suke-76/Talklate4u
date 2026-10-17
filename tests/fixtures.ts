@@ -33,6 +33,9 @@ export const test = base.extend<TestFixtures>({
       env: { ...process.env, NODE_ENV: 'development' },
     });
 
+    app.process().stdout?.on('data', (data) => console.log(`[Main STDOUT]: ${data}`));
+    app.process().stderr?.on('data', (data) => console.log(`[Main STDERR]: ${data}`));
+
     await use(app);
 
     await app.close();
