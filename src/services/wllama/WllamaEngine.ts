@@ -1,12 +1,4 @@
 import { Wllama, AssetsPathConfig, WllamaConfig, WllamaChatMessage } from '@wllama/wllama';
-import {
-  buildPlamoChatTemplateKwargs,
-  buildPlamoPfmlPrompt,
-  cleanPlamoOutput,
-  normalizeLangCode,
-  PLAMO_STOP_TOKENS,
-} from './plamoPrompt';
-import { PromptFactory } from '../PromptFactory';
 
 export interface WllamaEngineOptions {
   wasmUrl?: string;
@@ -31,8 +23,8 @@ export class WllamaEngine {
 
   constructor(options: WllamaEngineOptions) {
     this.options = {
-      nCtx: 2048,
-      n_gpu_layers: 9999,
+      nCtx: 4096,
+      n_gpu_layers: 99,
       nThreads: 1,
       temperature: 0.2,
       maxTokens: 256,
@@ -42,40 +34,35 @@ export class WllamaEngine {
     };
   }
 
-  private resolveWasmPath(): string {
-    if (this.options.wasmUrl) {
-      return this.options.wasmUrl;
-    }
-    if (typeof window !== 'undefined' && window.location?.href) {
-      return new URL('./wllama.wasm', window.location.href).href;
-    }
-    return './wllama.wasm';
-  }
-
   public async init(): Promise<void> {
-    if (this.isLoaded) return;
-    if (this.isInitializing) {
-      throw new Error('WllamaEngine is already initializing');
+    if (this.isLoaded || this.isInitializing) {
+      return;
     }
 
     this.isInitializing = true;
+
     try {
-      const wasmPath = this.resolveWasmPath();
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const defaultWasmUrl = `${origin}/wllama/single-thread/wllama.wasm`;
+
       const pathConfig: AssetsPathConfig = {
-        default: wasmPath,
+        default: this.options.wasmUrl || defaultWasmUrl,
+        'single-thread/wllama.wasm': this.options.wasmUrl || defaultWasmUrl,
+        'multi-thread/wllama.wasm': this.options.wasmUrl || defaultWasmUrl,
       };
 
       const wllamaConfig: WllamaConfig = {
         suppressNativeLog: false,
-        allowOffline: this.options.useCache ?? true,
+        allowOffline: true,
+        parallelDownloads: 3,
       };
 
+      console.log('[WllamaEngine] Initializing Wllama WebGPU context with config:', pathConfig);
       this.wllama = new Wllama(pathConfig, wllamaConfig);
-      this.wllama.setCompat(null);
 
       const downloadParams = {
-        n_ctx: this.options.nCtx,
-        n_gpu_layers: this.options.n_gpu_layers,
+        n_ctx: this.options.nCtx ?? 4096,
+        n_gpu_layers: this.options.n_gpu_layers ?? 99,
         n_threads: this.options.nThreads ?? 1,
         kv_unified: this.options.kv_unified ?? false,
         useCache: this.options.useCache ?? true,
@@ -138,8 +125,7 @@ export class WllamaEngine {
       temperature,
     });
 
-    const output = response.choices?.[0]?.message?.content ?? '';
-    return cleanPlamoOutput(output);
+    return response.choices?.[0]?.message?.content ?? '';
   }
 
   public async generate(
@@ -157,11 +143,10 @@ export class WllamaEngine {
       prompt,
       max_tokens: maxTokens,
       temperature,
-      stop: options?.stop ?? PLAMO_STOP_TOKENS,
+      stop: options?.stop,
     });
 
-    const output = response.choices?.[0]?.text ?? '';
-    return cleanPlamoOutput(output);
+    return response.choices?.[0]?.text ?? '';
   }
 
   public async dispose(): Promise<void> {
@@ -181,6 +166,11 @@ export class WllamaEngine {
   }
 }
 
+/**
+ * Pure Local WebGPU Transport Layer.
+ * Receives already-adapted request payloads (`messages`, `stop`, `chat_template_kwargs`, `fallbackPrompt`)
+ * from `TranslationService` via `ModelAdapter` and returns raw completion strings.
+ */
 export class PlamoLocalService {
   private static instance: PlamoLocalService;
   private engine: WllamaEngine | null = null;
@@ -265,80 +255,33 @@ export class PlamoLocalService {
     return this.initPromise;
   }
 
-  public async translate(options: {
-    text: string;
-    detectedLanguage?: string;
-    configuredTarget?: string;
+  public async execute(options: {
     modelId?: string;
-    context?: string;
-    glossary?: Array<{ source: string; target: string }>;
+    messages: WllamaChatMessage[];
+    stop?: string[];
+    chat_template_kwargs?: Record<string, unknown>;
+    fallbackPrompt?: string;
+    temperature?: number;
     onProgress?: (msg: string) => void;
-  }): Promise<{ text: string; targetLang: string; latencyMs: number }> {
-    const start = performance.now();
+  }): Promise<string> {
     await this.ensureLoaded(options.modelId, options.onProgress);
 
     if (!this.engine) {
       throw new Error('PLaMo Local Engine failed to initialize');
     }
 
-    const configuredTarget = options.configuredTarget || 'auto';
-    const { targetLang } = PromptFactory.getPrompt(configuredTarget, options.detectedLanguage);
-    const targetCode = normalizeLangCode(targetLang) || 'ja';
-    const sourceCode = normalizeLangCode(options.detectedLanguage);
-
-    // If source and target language are identical, skip unnecessary translation
-    if (sourceCode && sourceCode === targetCode) {
-      return {
-        text: options.text,
-        targetLang,
-        latencyMs: Math.round(performance.now() - start),
-      };
-    }
-
-    const kwargs = buildPlamoChatTemplateKwargs({
-      targetLang: targetCode,
-      sourceLang: sourceCode || undefined,
-      context: options.context,
-      glossary: options.glossary,
-      form: 'plain',
+    let rawOutput = await this.engine.chat(options.messages, {
+      temperature: options.temperature,
+      chat_template_kwargs: options.chat_template_kwargs,
     });
 
-    let translated = await this.engine.chat([{ role: 'user', content: options.text }], {
-      chat_template_kwargs: kwargs,
-    });
-
-    if (!translated) {
-      const pfmlPrompt = buildPlamoPfmlPrompt({
-        text: options.text,
-        targetLang: targetCode,
-        sourceLang: sourceCode || undefined,
-        context: options.context,
-        glossary: options.glossary,
-        form: 'plain',
-      });
-      translated = await this.engine.generate(pfmlPrompt, {
-        stop: PLAMO_STOP_TOKENS,
+    if (!rawOutput && options.fallbackPrompt) {
+      rawOutput = await this.engine.generate(options.fallbackPrompt, {
+        temperature: options.temperature,
+        stop: options.stop,
       });
     }
 
-    // Guard against runaway hallucination on ultra-short 1-2 char inputs
-    const strippedInput = options.text.replace(/[\s.?!,;:。、．！？・ー～〜…]+/gu, '');
-    if (strippedInput.length <= 2 && translated.length > 20) {
-      console.warn(
-        `[PlamoLocalService] Discarded disproportionate output for short input "${options.text}" -> "${translated}"`,
-      );
-      translated = '';
-    }
-
-    const latencyMs = Math.round(performance.now() - start);
-    console.log(
-      `[PlamoLocalService] (${latencyMs}ms, ${sourceCode || 'auto'} -> ${targetCode}): "${options.text}" -> "${translated}"`,
-    );
-
-    return {
-      text: translated,
-      targetLang,
-      latencyMs,
-    };
+    return rawOutput;
   }
 }

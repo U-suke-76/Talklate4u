@@ -32,3 +32,9 @@ trigger: always_on
 - **Coding Standards**: Follow the project's coding conventions and ensure there are no lint errors or warnings.
 - **Tech Stack**: Implementations must comply with Tailwind CSS v4 and DaisyUI v5 specifications (e.g., using @import instead of @tailwind directives).
 - **TypeScript**: Actively utilize features of TypeScript 5.x.
+
+### 4. Architecture Principles (Transport vs. Model Adapter Separation)
+
+- **Strict 2-Layer Separation**: Always keep **LLM Transport Providers** (`plamo-local` WebGPU / `groq` / `openai`) strictly separated from **Model-Family Adapters** (`src/services/adapters/ModelAdapter.ts`: `PlamoAdapter`, `QwenAdapter`, `GemmaAdapter`, `GptOssAdapter`, `StandardChatAdapter`).
+- **Adapter Responsibility**: All model-specific prompt formatting (`messages`, `stop`, `chat_template_kwargs`, `[plamo-translate]` blocks) and output cleaning/filtering MUST live exclusively inside `src/services/adapters/`.
+- **Transport Responsibility**: Transport layers (`src/services/wllama/WllamaEngine.ts` and OpenAI SDK calls in `src/services/TranslationService.ts`) MUST remain pure execution pipes that accept `AdapterRequestPayload` and return raw completion strings without any model-specific prompt or cleaning logic. Never duplicate prompt construction or output cleaning across local and remote transports.

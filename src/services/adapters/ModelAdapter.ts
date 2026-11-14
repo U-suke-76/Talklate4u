@@ -1,9 +1,11 @@
 import {
   buildPlamoChatTemplateKwargs,
+  buildPlamoPfmlPrompt,
+  buildPlamoSystemMessage,
   cleanPlamoOutput,
   normalizeLangCode,
   PLAMO_STOP_TOKENS,
-} from '../wllama/plamoPrompt';
+} from './plamoPrompt';
 
 export interface ConversationHistoryItem {
   original: string;
@@ -29,6 +31,7 @@ export interface AdapterRequestPayload {
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
   stop?: string[];
   chat_template_kwargs?: Record<string, unknown>;
+  fallbackPrompt?: string;
 }
 
 export interface IModelAdapter {
@@ -79,18 +82,29 @@ export class PlamoAdapter implements IModelAdapter {
       .filter(Boolean)
       .join('\n');
 
-    const kwargs = buildPlamoChatTemplateKwargs({
+    const templateOptions = {
       targetLang: targetCode,
       sourceLang: sourceCode || undefined,
       context: contextText || undefined,
       glossary: input.glossary.length > 0 ? input.glossary : undefined,
-      form: 'plain',
+      form: 'plain' as const,
+    };
+
+    const systemMessage = buildPlamoSystemMessage(templateOptions);
+    const kwargs = buildPlamoChatTemplateKwargs(templateOptions);
+    const fallbackPrompt = buildPlamoPfmlPrompt({
+      text: input.text,
+      ...templateOptions,
     });
 
     return {
-      messages: [{ role: 'user', content: input.text }],
+      messages: [
+        { role: 'system', content: systemMessage },
+        { role: 'user', content: input.text },
+      ],
       stop: PLAMO_STOP_TOKENS,
       chat_template_kwargs: kwargs,
+      fallbackPrompt,
     };
   }
 

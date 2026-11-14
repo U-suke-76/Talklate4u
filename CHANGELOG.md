@@ -12,10 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - feat: Added local SenseVoice-Small ASR engine (`SenseVoiceManager.ts`) powered by `sherpa-onnx-node` with automatic Hugging Face INT8 model download, non-speech/noise event filtering (`<|nospeech|>`, `Breath`, `Cough`, `BGM`, `Speech_Noise`, short filler/Chinese noise guard), and Japanese intra-sentence space removal.
-- feat: Added local PLaMo 3 Translate (0.8B / 2B) WebGPU translation engine (`WllamaEngine.ts`, `plamoPrompt.ts`) powered by `@wllama/wllama@3.13.0` with repetition loop removal, short-input hallucination guards, and native PFML3 `context` (recent conversation history) and `glossary` integration.
+- feat: Added local PLaMo 3 Translate (0.8B / 2B) WebGPU translation engine (`WllamaEngine.ts`, `src/services/adapters/plamoPrompt.ts`) powered by `@wllama/wllama@3.13.0` with repetition loop removal, short-input hallucination guards, and native PFML3 `context` (recent conversation history) and `glossary` integration.
 - ui: Added `SenseVoice-Small` ASR provider and `PLaMo 3 Translate (Local WebGPU)` LLM provider options in `SettingsModal.tsx`.
 - docs: Added `Built with PLaMo` attribution and PLaMo Community License notices to `SettingsModal.tsx`, `App.tsx`, `README.md`, `README.ja.md`, and `README.ko.md`.
-- refactor: Separated LLM transport providers from model-family adapters (`ModelAdapter.ts`: `PlamoAdapter`, `QwenAdapter`, `GemmaAdapter`, `GptOssAdapter`, `StandardChatAdapter`) in `TranslationService.ts`, enabling remote PLaMo 8B/31B execution with `chat_template_kwargs` over OpenAI-compatible servers (e.g. Google Colab `llama-server`).
+- docs: Added Architecture Principles (strict separation between LLM Transport Providers and Model-Family Adapters) to `.agent/rules/target.md`.
+- refactor: Separated LLM transport providers (`plamo-local` WebGPU / `groq` / `openai`) from model-family adapters (`ModelAdapter.ts`: `PlamoAdapter`, `QwenAdapter`, `GemmaAdapter`, `GptOssAdapter`, `StandardChatAdapter`), unifying local WebGPU (`WllamaEngine.ts`) and remote OpenAI-compatible servers (e.g. Bionic / LM Studio / Google Colab `llama-server`) into a single adapter-driven pipeline.
 - fix: Normalized OpenAI-compatible ASR and LLM `baseUrl` endpoints (`/v1/models`, `/v1/audio/transcriptions`, `/v1/chat/completions`) in `WhisperManager.ts` and `TranslationService.ts`.
 
 ## [0.0.6] - 2026-10-17

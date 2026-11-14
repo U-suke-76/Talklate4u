@@ -59,6 +59,54 @@ export function buildPlamoChatTemplateKwargs(
   return kwargs;
 }
 
+/**
+ * Builds the official `[plamo-translate]` system message supported by PFNet's GGUF Jinja chat_template.
+ * This ensures `target_lang`, `source_lang`, `form`, `glossary`, and `context` work across all transports
+ * (Wllama, Bionic / LM Studio, llama-server) regardless of whether `chat_template_kwargs` is supported.
+ */
+export function buildPlamoSystemMessage(options: PlamoChatTemplateOptions): string {
+  const lines: string[] = ['[plamo-translate]'];
+
+  const target = normalizeLangCode(options.targetLang) || 'ja';
+  lines.push(`target_lang=${target}`);
+
+  const source = normalizeLangCode(options.sourceLang);
+  if (source && source !== 'auto') {
+    lines.push(`source_lang=${source}`);
+  }
+
+  if (target === 'ja') {
+    lines.push(`form=${options.form || 'plain'}`);
+  }
+
+  if (options.glossary && options.glossary.length > 0) {
+    for (const item of options.glossary) {
+      const src = item.source?.trim();
+      const tgt = item.target?.split('/')[0]?.trim();
+      if (
+        src &&
+        tgt &&
+        !src.includes('<|plamo:') &&
+        !tgt.includes('<|plamo:') &&
+        !src.includes('=>') &&
+        !tgt.includes('=>') &&
+        !src.includes('\n') &&
+        !tgt.includes('\n')
+      ) {
+        lines.push(`glossary=${src} => ${tgt}`);
+      }
+    }
+  }
+
+  const cleanContext = options.context?.replace(/\r/g, '').trim();
+  if (cleanContext && !cleanContext.includes('<|plamo:')) {
+    lines.push('---');
+    lines.push(cleanContext);
+  }
+
+  return lines.join('\n');
+}
+
 export interface PlamoPfmlPromptOptions {
   text: string;
   targetLang?: string;

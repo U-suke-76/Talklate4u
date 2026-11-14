@@ -62,20 +62,20 @@ const App: React.FC = () => {
     // Listen for PLaMo Local translation requests from Main process
     window.electronAPI.onPlamoTranslateRequest(async (payload) => {
       try {
-        const res = await PlamoLocalService.getInstance().translate({
-          text: payload.text,
-          detectedLanguage: payload.detectedLanguage,
-          configuredTarget: payload.targetLang,
+        const rawText = await PlamoLocalService.getInstance().execute({
           modelId: payload.model,
-          context: payload.context,
-          glossary: payload.glossary,
+          messages: payload.messages,
+          stop: payload.stop,
+          chat_template_kwargs: payload.chat_template_kwargs,
+          fallbackPrompt: payload.fallbackPrompt,
+          temperature: payload.temperature,
           onProgress: (msg) => {
             setStatusText(msg);
           },
         });
         window.electronAPI.sendPlamoTranslateResult({
           requestId: payload.requestId,
-          text: res.text,
+          text: rawText,
         });
       } catch (err) {
         window.electronAPI.sendPlamoTranslateResult({

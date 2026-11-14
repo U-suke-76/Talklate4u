@@ -18,12 +18,12 @@ export interface ElectronAPI {
   onPlamoTranslateRequest: (
     callback: (payload: {
       requestId: string;
-      text: string;
-      detectedLanguage?: string;
-      targetLang: string;
       model: string;
-      context?: string;
-      glossary?: Array<{ source: string; target: string }>;
+      messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+      stop?: string[];
+      chat_template_kwargs?: Record<string, unknown>;
+      fallbackPrompt?: string;
+      temperature?: number;
     }) => void,
   ) => void;
   sendPlamoTranslateResult: (payload: { requestId: string; text?: string; error?: string }) => void;
