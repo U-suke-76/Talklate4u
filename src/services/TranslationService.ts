@@ -9,6 +9,7 @@ import Handlebars from 'handlebars';
 
 import { PathUtils } from '../utils/PathUtils';
 import { PromptFactory } from './PromptFactory';
+import { resolveModelAdapter } from './adapters/ModelAdapter';
 
 interface ConversationTurn {
   original: string;
@@ -92,7 +93,14 @@ export class TranslationService {
         clientConfig.baseURL = 'https://api.groq.com/openai/v1';
       } else if (provider === 'openai') {
         if (baseUrl && baseUrl.trim().length > 0) {
-          clientConfig.baseURL = baseUrl;
+          let normalized = baseUrl.trim().replace(/\/+$/, '');
+          if (normalized.endsWith('/chat/completions')) {
+            normalized = normalized.slice(0, -'/chat/completions'.length);
+          }
+          if (!normalized.endsWith('/v1') && !normalized.includes('/v1/')) {
+            normalized = `${normalized}/v1`;
+          }
+          clientConfig.baseURL = normalized;
         }
       }
 
@@ -391,22 +399,28 @@ export class TranslationService {
 
         const start = Date.now();
 
+        const configuredTarget = config.translation?.targetLang || 'auto';
+        const { targetLang } = PromptFactory.getPrompt(configuredTarget, detectedLanguage);
         const systemPrompt = this.getSystemPrompt(detectedLanguage);
         const recentHistory = this.getActiveHistory();
+        const matchedGlossary = this.getPlamoGlossary(text, detectedLanguage);
+        const adapter = resolveModelAdapter(modelToUse, config.llm.provider);
+        const adapterRequest = adapter.buildRequest({
+          text,
+          sourceLang: detectedLanguage,
+          targetLangName: targetLang,
+          systemPrompt,
+          history: recentHistory,
+          glossary: matchedGlossary,
+        });
+
         console.log(
-          `[TranslationService] System Prompt generated for lang="${detectedLanguage}" (History turns: ${recentHistory.length})`,
+          `[TranslationService] Adapter="${adapter.family}" for Model="${modelToUse}" (lang="${detectedLanguage}" -> "${targetLang}", ctx:${recentHistory.length}, gls:${matchedGlossary.length})`,
         );
 
-        console.debug(`[TranslationService] LLM request systemPrompt:`, systemPrompt);
+        console.debug(`[TranslationService] LLM request messages:`, adapterRequest.messages);
 
         console.log(`[TranslationService] Sending request: "${text}" (Model: ${modelToUse})`);
-
-        // Build multi-turn messages with recent conversation history for context continuity
-        const historyMessages: { role: 'user' | 'assistant'; content: string }[] = [];
-        for (const turn of recentHistory) {
-          historyMessages.push({ role: 'user', content: turn.original });
-          historyMessages.push({ role: 'assistant', content: turn.translated });
-        }
 
         const maxGenRetries = 3;
         let cleanText = '';
@@ -415,20 +429,33 @@ export class TranslationService {
         for (let genAttempt = 1; genAttempt <= maxGenRetries; genAttempt++) {
           const currentTemperature = 0.2 + (genAttempt - 1) * 0.1;
 
-          const completion = await client.chat.completions.create({
-            messages: [
-              { role: 'system', content: systemPrompt },
-              ...historyMessages,
-              { role: 'user', content: text },
-            ],
+          const requestBody: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
+            chat_template_kwargs?: Record<string, unknown>;
+          } = {
+            messages: adapterRequest.messages,
             model: modelToUse,
             temperature: Number(currentTemperature.toFixed(1)),
-            stop: ['<|'],
-          });
+          };
+
+          if (adapterRequest.stop && adapterRequest.stop.length > 0) {
+            requestBody.stop = adapterRequest.stop;
+          }
+          if (adapterRequest.chat_template_kwargs) {
+            requestBody.chat_template_kwargs = adapterRequest.chat_template_kwargs;
+          }
+
+          const completion = await client.chat.completions.create(requestBody);
 
           const end = Date.now();
           duration = end - start;
-          const result = completion.choices[0]?.message?.content || '';
+          const choiceMsg = completion.choices[0]?.message as
+            | {
+                content?: string | null;
+                reasoning?: string | null;
+                reasoning_content?: string | null;
+              }
+            | undefined;
+          const result = choiceMsg?.content || '';
 
           console.debug(`[TranslationService] LLM response (raw):`, result);
           console.debug(
@@ -436,8 +463,13 @@ export class TranslationService {
             JSON.stringify(completion, null, 2),
           );
 
-          // <think> タグとその中身を削除（完了せずに途切れた場合も考慮）
-          cleanText = result.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim();
+          cleanText = adapter.cleanOutput(result, text);
+
+          // If PlamoAdapter intentionally discarded disproportionate output on 1-2 char noise, exit cleanly without retrying
+          const strippedInput = text.replace(/[\s.?!,;:。、．！？・ー～〜…]+/gu, '');
+          if (!cleanText && adapter.family === 'plamo' && strippedInput.length <= 2) {
+            break;
+          }
 
           if (cleanText) {
             break; // 正常に内容が抽出できたのでループを抜ける
@@ -451,7 +483,7 @@ export class TranslationService {
           }
         }
 
-        console.log(`[TRANS] [${duration}ms] ${text} -> ${cleanText}`);
+        console.log(`[TRANS][${adapter.family}] [${duration}ms] ${text} -> ${cleanText}`);
 
         // Stage 2 Overlay Broadcast & History Update
         if (cleanText) {

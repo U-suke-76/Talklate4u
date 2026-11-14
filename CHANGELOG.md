@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat: Added local PLaMo 3 Translate (0.8B / 2B) WebGPU translation engine (`WllamaEngine.ts`, `plamoPrompt.ts`) powered by `@wllama/wllama@3.13.0` with repetition loop removal, short-input hallucination guards, and native PFML3 `context` (recent conversation history) and `glossary` integration.
 - ui: Added `SenseVoice-Small` ASR provider and `PLaMo 3 Translate (Local WebGPU)` LLM provider options in `SettingsModal.tsx`.
 - docs: Added `Built with PLaMo` attribution and PLaMo Community License notices to `SettingsModal.tsx`, `App.tsx`, `README.md`, `README.ja.md`, and `README.ko.md`.
+- refactor: Separated LLM transport providers from model-family adapters (`ModelAdapter.ts`: `PlamoAdapter`, `QwenAdapter`, `GemmaAdapter`, `GptOssAdapter`, `StandardChatAdapter`) in `TranslationService.ts`, enabling remote PLaMo 8B/31B execution with `chat_template_kwargs` over OpenAI-compatible servers (e.g. Google Colab `llama-server`).
+- fix: Normalized OpenAI-compatible ASR and LLM `baseUrl` endpoints (`/v1/models`, `/v1/audio/transcriptions`, `/v1/chat/completions`) in `WhisperManager.ts` and `TranslationService.ts`.
 
 ## [0.0.6] - 2026-10-17
 

@@ -92,6 +92,33 @@ export class WhisperManager extends EventEmitter {
     return this.modelsDir;
   }
 
+  private resolveOpenAiWhisperEndpoints(baseUrl?: string): {
+    modelsUrl: string;
+    transcriptionsUrl: string;
+  } {
+    const trimmed = (baseUrl || '').trim().replace(/\/+$/, '');
+    if (!trimmed) {
+      return {
+        modelsUrl: 'https://api.openai.com/v1/models',
+        transcriptionsUrl: 'https://api.openai.com/v1/audio/transcriptions',
+      };
+    }
+
+    if (trimmed.endsWith('/audio/transcriptions')) {
+      const v1Root = trimmed.slice(0, -'/audio/transcriptions'.length);
+      return {
+        modelsUrl: `${v1Root}/models`,
+        transcriptionsUrl: trimmed,
+      };
+    }
+
+    const v1Base = trimmed.endsWith('/v1') || trimmed.includes('/v1/') ? trimmed : `${trimmed}/v1`;
+    return {
+      modelsUrl: `${v1Base}/models`,
+      transcriptionsUrl: `${v1Base}/audio/transcriptions`,
+    };
+  }
+
   private async verifyRemoteConnection(
     provider: 'groq' | 'openai',
     apiKey: string,
@@ -103,12 +130,12 @@ export class WhisperManager extends EventEmitter {
       if (provider === 'groq') {
         url = 'https://api.groq.com/openai/v1/models';
       } else {
-        url = baseUrl ? `${baseUrl}/models` : 'https://api.openai.com/v1/models';
+        url = this.resolveOpenAiWhisperEndpoints(baseUrl).modelsUrl;
       }
 
       const axiosConfig: AxiosRequestConfig = {
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${apiKey || 'dummy'}`,
         },
         httpAgent: this.httpAgent,
         timeout: 10000,
@@ -136,10 +163,12 @@ export class WhisperManager extends EventEmitter {
 
       // Validate Connection
       const apiKey = config.whisper.apiKey;
-      if (apiKey) {
+      const hasCustomBaseUrl =
+        config.whisper.provider === 'openai' && Boolean(config.whisper.baseUrl?.trim());
+      if (apiKey || hasCustomBaseUrl) {
         this.isRemoteActive = await this.verifyRemoteConnection(
           config.whisper.provider,
-          apiKey,
+          apiKey || 'dummy',
           config.whisper.baseUrl,
         );
       } else {
@@ -421,16 +450,20 @@ export class WhisperManager extends EventEmitter {
 
       if (provider === 'groq' || provider === 'openai') {
         const apiKey = config.whisper.apiKey;
-        if (!apiKey) {
+        const hasCustomBaseUrl = provider === 'openai' && Boolean(config.whisper.baseUrl?.trim());
+        if (!apiKey && !hasCustomBaseUrl) {
           throw new Error('API Key is required for remote provider');
         }
 
         const model = config.whisper.model || 'whisper-1'; // Default fallbacks
 
-        // Groq default URL
+        // Groq / OpenAI endpoint resolution
         let baseUrl = 'https://api.groq.com/openai/v1/audio/transcriptions';
-        if (provider === 'openai') baseUrl = 'https://api.openai.com/v1/audio/transcriptions';
-        if (config.whisper.baseUrl) baseUrl = config.whisper.baseUrl;
+        if (provider === 'openai') {
+          baseUrl = this.resolveOpenAiWhisperEndpoints(config.whisper.baseUrl).transcriptionsUrl;
+        } else if (config.whisper.baseUrl) {
+          baseUrl = config.whisper.baseUrl;
+        }
 
         formData.append('model', model);
         const lang = config.whisper.language;
@@ -447,7 +480,7 @@ export class WhisperManager extends EventEmitter {
         const axiosConfig: AxiosRequestConfig = {
           headers: {
             ...formData.getHeaders(),
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey || 'dummy'}`,
           },
           maxBodyLength: Infinity,
           maxContentLength: Infinity,
