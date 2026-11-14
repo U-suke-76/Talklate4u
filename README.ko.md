@@ -197,3 +197,16 @@ npm run make
 
 `package` 처리를 수행한 후, 추가로 인스톨러 (`setup.exe`) 를 생성합니다.
 빌드 설정 (`forge.config.ts`) 에 의해, 위에서 빌드한 `build/bin` 폴더 일체가 동봉됩니다.
+
+---
+
+## 📄 라이선스 및 크레딧 (License & Acknowledgements)
+
+### 🌟 AI 모델 및 감사의 글 (Built with PLaMo)
+
+- 본 앱의 로컬 WebGPU 번역 엔진에는 **Preferred Networks, Inc. (PFN)** 가 개발·공개한 번역 특화 모델을 채택하고 있습니다.
+  - **크레딧**: **Built with PLaMo**
+  - **채택 모델**: `plamo-3-translate-0.8b` / `plamo-3-translate-2b`
+  - **라이선스**: 본 모델의 이용은 [PLaMo 커뮤니티 라이선스 (PLaMo Community License)](https://plamo.preferredai.jp/info/plamo-community-license-en) ([일본어](https://plamo.preferredai.jp/info/plamo-community-license-ja)) 를 준수합니다.
+- 온디바이스 WebGPU 추론 런타임으로 [Wllama](https://github.com/ngxson/wllama) 를 사용합니다.
+- 본 애플리케이션의 소스 코드는 MIT License 하에 공개되어 있습니다.

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
 import { GlossarySettings, GlossaryEntry } from './GlossarySettings';
+import { PlamoLocalService } from '../services/wllama/WllamaEngine';
 import {
   OverlaySettingsComponents,
   OverlayStyles,
@@ -22,12 +23,12 @@ interface AppConfig {
     extraArgs?: string;
     binPath?: string;
     systemPrompt?: string;
-    provider?: 'local' | 'groq' | 'openai';
+    provider?: 'local' | 'groq' | 'openai' | 'sensevoice';
     apiKey?: string;
     baseUrl?: string;
   };
   llm: {
-    provider: 'groq' | 'openai';
+    provider: 'groq' | 'openai' | 'plamo-local';
     baseUrl?: string;
     apiKey: string;
     model: string;
@@ -260,7 +261,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
       const res = await window.electronAPI.restartWhisper();
       if (res.error) {
-        const msg = `Error starting Whisper: ${res.error}`;
+        const msg = `Error starting ASR: ${res.error}`;
         console.error(msg);
         if (onLog) {
           onLog(msg);
@@ -269,6 +270,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           alert(msg + '\n\nPlease check your settings.');
         }
       } else {
+        if (config.llm.provider === 'plamo-local') {
+          PlamoLocalService.getInstance()
+            .ensureLoaded(config.llm.model, (msg) => {
+              window.electronAPI.sendDownloadProgress(msg);
+            })
+            .then(() => {
+              onLog?.(`[PLaMo Local] Model (${config.llm.model}) ready on WebGPU!`);
+            })
+            .catch((err) => {
+              onLog?.(
+                `[PLaMo Local] Failed to load model: ${err instanceof Error ? err.message : String(err)}`,
+              );
+            });
+        }
         onSaved();
         onClose();
       }
@@ -366,7 +381,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
       {/* Whisper Provider */}
       <label className="font-bold text-gray-300" htmlFor="whisper-provider">
-        Whisper Provider
+        ASR Provider
       </label>
       <select
         id="whisper-provider"
@@ -377,17 +392,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             ...config,
             whisper: {
               ...config.whisper,
-              provider: e.target.value as 'local' | 'groq' | 'openai',
+              provider: e.target.value as 'local' | 'groq' | 'openai' | 'sensevoice',
               model:
                 e.target.value === 'groq'
                   ? 'whisper-large-v3-turbo'
                   : e.target.value === 'local'
                     ? 'ggml-base.bin'
-                    : 'whisper-1',
+                    : e.target.value === 'sensevoice'
+                      ? 'sensevoice-small-int8'
+                      : 'whisper-1',
             },
           })
         }
       >
+        <option value="sensevoice">SenseVoice-Small (Local ONNX / Ultra-Fast)</option>
         <option value="local">Local (whisper.cpp)</option>
         <option value="groq">Groq API</option>
         <option value="openai">OpenAI API</option>
@@ -439,9 +457,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
       {/* Whisper Model */}
       <label className="font-bold text-gray-300" htmlFor="whisper-model">
-        Whisper Model
+        ASR Model
       </label>
-      {config.whisper.provider === 'groq' ? (
+      {config.whisper.provider === 'sensevoice' ? (
+        <select
+          id="whisper-model"
+          className="select select-bordered w-full"
+          value="sensevoice-small-int8"
+          disabled
+        >
+          <option value="sensevoice-small-int8">
+            SenseVoice-Small INT8 (zh/en/ja/ko/yue, ~230MB)
+          </option>
+        </select>
+      ) : config.whisper.provider === 'groq' ? (
         <select
           id="whisper-model"
           className="select select-bordered w-full"
@@ -586,16 +615,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         id="llm-provider"
         className="select select-bordered w-full"
         value={config.llm.provider}
-        onChange={(e) =>
+        onChange={(e) => {
+          const nextProvider = e.target.value as 'groq' | 'openai' | 'plamo-local';
           setConfig({
             ...config,
             llm: {
               ...config.llm,
-              provider: e.target.value as 'groq' | 'openai',
+              provider: nextProvider,
+              model:
+                nextProvider === 'plamo-local'
+                  ? 'plamo-3-translate-0.8b'
+                  : nextProvider === 'groq'
+                    ? 'auto'
+                    : config.llm.model,
             },
-          })
-        }
+          });
+        }}
       >
+        <option value="plamo-local">PLaMo 3 Translate (Local WebGPU / Wllama)</option>
         <option value="groq">Groq (Recommended)</option>
         <option value="openai">OpenAI Compatible (Ollama/LM Studio)</option>
       </select>
@@ -623,28 +660,70 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       )}
 
       {/* API Key */}
-      <label className="font-bold text-gray-300" htmlFor="llm-api-key">
-        API Key
-      </label>
-      <input
-        id="llm-api-key"
-        type="password"
-        className="input input-bordered w-full font-mono text-sm"
-        value={config.llm.apiKey}
-        placeholder={config.llm.provider === 'groq' ? 'gsk_...' : 'sk-...'}
-        onChange={(e) =>
-          setConfig({
-            ...config,
-            llm: { ...config.llm, apiKey: e.target.value },
-          })
-        }
-      />
+      {config.llm.provider !== 'plamo-local' && (
+        <>
+          <label className="font-bold text-gray-300" htmlFor="llm-api-key">
+            API Key
+          </label>
+          <input
+            id="llm-api-key"
+            type="password"
+            className="input input-bordered w-full font-mono text-sm"
+            value={config.llm.apiKey}
+            placeholder={config.llm.provider === 'groq' ? 'gsk_...' : 'sk-...'}
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                llm: { ...config.llm, apiKey: e.target.value },
+              })
+            }
+          />
+        </>
+      )}
 
       {/* Model */}
       <label className="font-bold text-gray-300" htmlFor="llm-model">
         Model
       </label>
-      {config.llm.provider === 'groq' ? (
+      {config.llm.provider === 'plamo-local' ? (
+        <div className="flex flex-col gap-2 w-full">
+          <select
+            id="llm-model"
+            className="select select-bordered w-full"
+            value={
+              config.llm.model === 'plamo-3-translate-2b'
+                ? 'plamo-3-translate-2b'
+                : 'plamo-3-translate-0.8b'
+            }
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                llm: { ...config.llm, model: e.target.value },
+              })
+            }
+          >
+            <option value="plamo-3-translate-0.8b">
+              PLaMo 3 Translate 0.8B (Q4_K_M / ~546MB / Fast)
+            </option>
+            <option value="plamo-3-translate-2b">
+              PLaMo 3 Translate 2B (Q4_K_M / ~1.3GB / High Quality)
+            </option>
+          </select>
+          <div className="flex items-center justify-between text-xs text-gray-400 bg-gray-800/80 border border-gray-700 rounded-md px-3 py-1.5">
+            <span>
+              <strong>Built with PLaMo</strong> (Preferred Networks, Inc.)
+            </span>
+            <a
+              href="https://plamo.preferredai.jp/info/plamo-community-license-ja"
+              target="_blank"
+              rel="noreferrer"
+              className="link link-primary"
+            >
+              PLaMo Community License
+            </a>
+          </div>
+        </div>
+      ) : config.llm.provider === 'groq' ? (
         <div className="flex flex-col gap-1 w-full">
           <div className="flex gap-2 w-full">
             <select

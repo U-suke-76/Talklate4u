@@ -7,6 +7,7 @@ import log from 'electron-log/main';
 // Managers & Services
 import { ConfigManager } from './managers/ConfigManager';
 import { WhisperManager } from './server/WhisperManager';
+import { SenseVoiceManager } from './server/SenseVoiceManager';
 
 import { OverlayServer } from './server/OverlayServer';
 import { TranslationService } from './services/TranslationService';
@@ -51,10 +52,67 @@ console.log('[Main] process.argv:', process.argv);
 // Initialize Managers
 const configManager = ConfigManager.getInstance();
 const whisperManager = new WhisperManager();
+const senseVoiceManager = new SenseVoiceManager();
 const overlayServer = new OverlayServer(configManager.getConfig().overlay.port);
 const translationService = new TranslationService(overlayServer, (msg) => {
   if (mainWindow) {
     mainWindow.webContents.send('system-log', msg);
+  }
+});
+
+const pendingPlamoRequests = new Map<
+  string,
+  { resolve: (text: string) => void; reject: (err: Error) => void }
+>();
+let plamoReqIdCounter = 1;
+
+translationService.setLocalTranslator(async (params) => {
+  const win = mainWindow;
+  if (!win) {
+    throw new Error('Main window is not available for WebGPU inference');
+  }
+  const requestId = `plamo-${Date.now()}-${plamoReqIdCounter++}`;
+  return new Promise<string>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingPlamoRequests.delete(requestId);
+      reject(new Error('PLaMo Local translation timed out (120s)'));
+    }, 120000);
+
+    pendingPlamoRequests.set(requestId, {
+      resolve: (text) => {
+        clearTimeout(timer);
+        resolve(text);
+      },
+      reject: (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    });
+
+    win.webContents.send('plamo-translate-request', {
+      requestId,
+      ...params,
+    });
+  });
+});
+
+ipcMain.on(
+  'plamo-translate-result',
+  (_event, payload: { requestId: string; text?: string; error?: string }) => {
+    const pending = pendingPlamoRequests.get(payload.requestId);
+    if (!pending) return;
+    pendingPlamoRequests.delete(payload.requestId);
+    if (payload.error) {
+      pending.reject(new Error(payload.error));
+    } else {
+      pending.resolve(payload.text ?? '');
+    }
+  },
+);
+
+ipcMain.on('download-progress-from-renderer', (_event, progress: string) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('download-progress', progress);
   }
 });
 
@@ -84,11 +142,22 @@ app.on('ready', () => {
   createWindow();
 
   // Start Services
-  // Start Services
-  whisperManager.start().catch((err) => console.error('Failed to start Whisper on launch:', err));
+  const initialConfig = configManager.getConfig();
+  if (initialConfig.whisper.provider === 'sensevoice') {
+    senseVoiceManager
+      .start(initialConfig.whisper.language)
+      .catch((err) => console.error('Failed to start SenseVoice on launch:', err));
+  } else {
+    whisperManager.start().catch((err) => console.error('Failed to start Whisper on launch:', err));
+  }
 
-  // Hook Whisper Progress
+  // Hook Whisper & SenseVoice Progress
   whisperManager.on('download-progress', (progress: string) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('download-progress', progress);
+    }
+  });
+  senseVoiceManager.on('download-progress', (progress: string) => {
     if (mainWindow) {
       mainWindow.webContents.send('download-progress', progress);
     }
@@ -116,6 +185,7 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   whisperManager.stop();
+  senseVoiceManager.stop();
   overlayServer.stop();
 });
 
@@ -152,11 +222,14 @@ ipcMain.on('renderer-log', (event, message) => {
 
 // Whisper Status
 ipcMain.handle('check-whisper-status', async () => {
-  const isRunning = (await whisperManager.checkStatus()).running;
   const config = configManager.getConfig();
+  const isSenseVoice = config.whisper.provider === 'sensevoice';
+  const isRunning = isSenseVoice
+    ? (await senseVoiceManager.checkStatus()).running
+    : (await whisperManager.checkStatus()).running;
 
   const missing: string[] = [];
-  if (!config.whisper?.model) missing.push('Whisper Model');
+  if (!isSenseVoice && !config.whisper?.model) missing.push('Whisper Model');
 
   // Check LLM Config
   const { provider, apiKey, baseUrl } = config.llm;
@@ -165,8 +238,8 @@ ipcMain.handle('check-whisper-status', async () => {
 
   return {
     success: isRunning,
-    isDownloading: whisperManager.isDownloading,
-    progress: whisperManager.downloadProgress,
+    isDownloading: isSenseVoice ? senseVoiceManager.isDownloading : whisperManager.isDownloading,
+    progress: isSenseVoice ? senseVoiceManager.downloadProgress : whisperManager.downloadProgress,
     configIssues: missing,
   };
 });
@@ -179,14 +252,21 @@ ipcMain.handle('check-overlay-status', () => {
   };
 });
 
-// Restart Whisper
+// Restart Whisper / ASR
 ipcMain.handle('restart-whisper', async () => {
   try {
     const config = configManager.getConfig();
+    const provider = config.whisper.provider || 'local';
+
+    if (provider === 'sensevoice') {
+      whisperManager.stop();
+      await senseVoiceManager.start(config.whisper.language);
+      return { success: true };
+    }
+
+    senseVoiceManager.stop();
     const modelName = config.whisper.model;
     const modelPath = path.join(whisperManager.getModelsDir(), modelName);
-
-    const provider = config.whisper.provider || 'local';
 
     // Only check/download model if provider is local
     if (provider === 'local') {
@@ -201,18 +281,22 @@ ipcMain.handle('restart-whisper', async () => {
   } catch (e) {
     // Reset downloading state just in case
     whisperManager.isDownloading = false;
-    console.error('Restart Whisper Error:', e);
+    senseVoiceManager.isDownloading = false;
+    console.error('Restart ASR Error:', e);
     const errorMessage = e instanceof Error ? e.message : String(e);
     // Also stop if it failed halfway
     whisperManager.stop();
+    senseVoiceManager.stop();
     return { error: errorMessage };
   }
 });
 
 // Transcribe
 ipcMain.handle('transcribe-audio', async (e, buffer: ArrayBuffer) => {
-  // Note: language arg is usually ignored by the server if it's already running with a set language,
-  // but we accept it to match the signature.
+  const config = configManager.getConfig();
+  if (config.whisper.provider === 'sensevoice') {
+    return await senseVoiceManager.transcribe(buffer);
+  }
   return await whisperManager.transcribe(buffer);
 });
 

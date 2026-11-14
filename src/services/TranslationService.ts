@@ -46,6 +46,16 @@ export class TranslationService {
   ];
 
   private onLog: (msg: string) => void;
+  private localTranslator:
+    | ((params: {
+        text: string;
+        detectedLanguage?: string;
+        targetLang: string;
+        model: string;
+        context?: string;
+        glossary?: Array<{ source: string; target: string }>;
+      }) => Promise<string>)
+    | null = null;
 
   constructor(overlayServer: OverlayServer, onLog: (msg: string) => void) {
     this.overlayServer = overlayServer;
@@ -53,6 +63,19 @@ export class TranslationService {
 
     // Pre-compile template if possible or load on demand
     this.loadSystemPromptTemplate();
+  }
+
+  public setLocalTranslator(
+    fn: (params: {
+      text: string;
+      detectedLanguage?: string;
+      targetLang: string;
+      model: string;
+      context?: string;
+      glossary?: Array<{ source: string; target: string }>;
+    }) => Promise<string>,
+  ) {
+    this.localTranslator = fn;
   }
 
   private getLLMClient(): OpenAI | null {
@@ -184,6 +207,59 @@ export class TranslationService {
     });
   }
 
+  private getPlamoGlossary(
+    text: string,
+    detectedLanguage?: string,
+  ): Array<{ source: string; target: string }> {
+    const config = ConfigManager.getInstance().getConfig();
+    const glossary = config.glossary || [];
+    if (glossary.length === 0) return [];
+
+    const configuredTarget = config.translation?.targetLang || 'auto';
+    const { targetLang } = PromptFactory.getPrompt(configuredTarget, detectedLanguage);
+    const sourceLang = detectedLanguage || 'Unknown';
+
+    let targetLangCode = '';
+    if (targetLang === 'Japanese') targetLangCode = 'ja';
+    else if (targetLang === 'Korean') targetLangCode = 'ko';
+    else if (targetLang === 'English') targetLangCode = 'en';
+
+    const lowerText = text.toLowerCase();
+    const matched: Array<{ source: string; target: string }> = [];
+    const seen = new Set<string>();
+
+    for (const entry of glossary) {
+      const isUniMatch =
+        (entry.sourceLang === sourceLang || sourceLang === 'Unknown') &&
+        entry.targetLang === targetLangCode;
+
+      const isBiMatchReversed =
+        entry.bidirectional &&
+        (entry.targetLang === sourceLang || sourceLang === 'Unknown') &&
+        entry.sourceLang === targetLangCode;
+
+      if (isUniMatch && entry.sourceText && lowerText.includes(entry.sourceText.toLowerCase())) {
+        const key = `${entry.sourceText}=>${entry.targetText}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          matched.push({ source: entry.sourceText, target: entry.targetText });
+        }
+      } else if (
+        isBiMatchReversed &&
+        entry.targetText &&
+        lowerText.includes(entry.targetText.toLowerCase())
+      ) {
+        const key = `${entry.targetText}=>${entry.sourceText}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          matched.push({ source: entry.targetText, target: entry.sourceText });
+        }
+      }
+    }
+
+    return matched;
+  }
+
   public async translate(
     text: string,
     detectedLanguage?: string,
@@ -206,6 +282,64 @@ export class TranslationService {
 
     const config = ConfigManager.getInstance().getConfig();
     const currentModel = config.llm?.model || 'auto';
+
+    if (config.llm.provider === 'plamo-local') {
+      if (!this.localTranslator) {
+        this.overlayServer.broadcast('translation_remove', { id: subtitleId });
+        return { text: null, error: 'PLaMo Local Translator not initialized' };
+      }
+
+      try {
+        const start = Date.now();
+        const plamoModel =
+          currentModel === 'plamo-3-translate-2b'
+            ? 'plamo-3-translate-2b'
+            : 'plamo-3-translate-0.8b';
+
+        const recentHistory = this.getActiveHistory();
+        const contextText = recentHistory
+          .slice(-4)
+          .map((turn) => turn.original.trim())
+          .filter(Boolean)
+          .join('\n');
+        const matchedGlossary = this.getPlamoGlossary(text, detectedLanguage);
+
+        const cleanText = (
+          await this.localTranslator({
+            text,
+            detectedLanguage,
+            targetLang: config.translation?.targetLang || 'auto',
+            model: plamoModel,
+            context: contextText || undefined,
+            glossary: matchedGlossary.length > 0 ? matchedGlossary : undefined,
+          })
+        ).trim();
+        const duration = Date.now() - start;
+
+        console.log(
+          `[TRANS][PLaMo-Local] [${duration}ms] (ctx:${recentHistory.slice(-4).length}, gls:${matchedGlossary.length}) ${text} -> ${cleanText}`,
+        );
+
+        if (cleanText) {
+          this.pushHistory(text, cleanText);
+          this.overlayServer.broadcast('translation', {
+            id: subtitleId,
+            original: text,
+            translation: cleanText,
+            pending: false,
+          });
+        } else {
+          this.overlayServer.broadcast('translation_remove', { id: subtitleId });
+        }
+
+        return { text: cleanText };
+      } catch (err: unknown) {
+        this.overlayServer.broadcast('translation_remove', { id: subtitleId });
+        const message = err instanceof Error ? err.message : String(err);
+        return { text: null, error: message };
+      }
+    }
+
     const isGroq = config.llm.provider === 'groq';
     const isAuto = currentModel === 'auto' && isGroq;
 

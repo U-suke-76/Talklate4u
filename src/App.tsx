@@ -5,11 +5,13 @@ import { useServerStatus } from './hooks/useServerStatus';
 import { useSpeechTranslation } from './hooks/useSpeechTranslation';
 import { LogViewer } from './components/LogViewer';
 import { useMicrophone } from './hooks/useMicrophone';
+import { PlamoLocalService } from './services/wllama/WllamaEngine';
 import { cn } from './utils/cn';
 
 const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [statusText, setStatusText] = useState('Initializing...');
+  const [llmProvider, setLlmProvider] = useState<string>('');
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -56,6 +58,55 @@ const App: React.FC = () => {
     window.electronAPI.onOpenSettings(() => {
       setShowSettings(true);
     });
+
+    // Listen for PLaMo Local translation requests from Main process
+    window.electronAPI.onPlamoTranslateRequest(async (payload) => {
+      try {
+        const res = await PlamoLocalService.getInstance().translate({
+          text: payload.text,
+          detectedLanguage: payload.detectedLanguage,
+          configuredTarget: payload.targetLang,
+          modelId: payload.model,
+          context: payload.context,
+          glossary: payload.glossary,
+          onProgress: (msg) => {
+            setStatusText(msg);
+          },
+        });
+        window.electronAPI.sendPlamoTranslateResult({
+          requestId: payload.requestId,
+          text: res.text,
+        });
+      } catch (err) {
+        window.electronAPI.sendPlamoTranslateResult({
+          requestId: payload.requestId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    });
+
+    // Preload PLaMo Local model on startup if configured
+    window.electronAPI
+      .loadConfig()
+      .then((cfg) => {
+        const typedCfg = cfg as { llm?: { provider?: string; model?: string } } | null;
+        setLlmProvider(typedCfg?.llm?.provider || '');
+        if (typedCfg?.llm?.provider === 'plamo-local') {
+          PlamoLocalService.getInstance()
+            .ensureLoaded(typedCfg.llm.model, (msg) => setStatusText(msg))
+            .then(() => {
+              addSystemLog(`[PLaMo Local] Ready (${typedCfg.llm?.model || '0.8b'})`);
+            })
+            .catch((e) => {
+              addSystemLog(
+                `[PLaMo Local] Init error: ${e instanceof Error ? e.message : String(e)}`,
+              );
+            });
+        }
+      })
+      .catch(() => {
+        /* ignore */
+      });
   }, [addSystemLog]);
   useEffect(() => {
     if (volumeRef.current) {
@@ -125,6 +176,14 @@ const App: React.FC = () => {
   };
 
   const handleSettingsSaved = async () => {
+    try {
+      const cfg = (await window.electronAPI.loadConfig()) as {
+        llm?: { provider?: string };
+      } | null;
+      setLlmProvider(cfg?.llm?.provider || '');
+    } catch {
+      /* ignore */
+    }
     await checkServer();
     if (isListeningRef.current) {
       addSystemLog('Settings saved. Restarting VAD to apply changes...');
@@ -192,7 +251,24 @@ const App: React.FC = () => {
             </button>
           </div>
 
-          <div className="text-xs text-center text-gray-500">Status: {statusText}</div>
+          <div className="flex justify-between items-center text-xs text-gray-500">
+            <span className={llmProvider === 'plamo-local' ? '' : 'w-full text-center'}>
+              Status: {statusText}
+            </span>
+            {llmProvider === 'plamo-local' && (
+              <span>
+                Built with{' '}
+                <a
+                  href="https://plamo.preferredai.jp/info/plamo-community-license-ja"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline hover:text-gray-300"
+                >
+                  PLaMo
+                </a>
+              </span>
+            )}
+          </div>
         </div>
       </main>
 

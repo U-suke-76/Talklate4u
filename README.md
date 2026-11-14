@@ -197,3 +197,16 @@ npm run make
 
 After performing `package`, creates an installer (`setup.exe`).
 The build settings (`forge.config.ts`) ensure the `build/bin` folder built above is included.
+
+---
+
+## 📄 License & Acknowledgements
+
+### 🌟 AI Models & Attribution (Built with PLaMo)
+
+- The local WebGPU translation engine integrates translation-specialized models developed and published by **Preferred Networks, Inc. (PFN)**:
+  - **Attribution**: **Built with PLaMo**
+  - **Models**: `plamo-3-translate-0.8b` / `plamo-3-translate-2b`
+  - **License**: Usage of these models is subject to the [PLaMo Community License](https://plamo.preferredai.jp/info/plamo-community-license-en) ([Japanese](https://plamo.preferredai.jp/info/plamo-community-license-ja)).
+- On-device WebGPU inference runtime is powered by [Wllama](https://github.com/ngxson/wllama).
+- The source code of this application is released under the MIT License.

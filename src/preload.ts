@@ -28,6 +28,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onOpenSettings: (callback: () => void) => {
     ipcRenderer.on('open-settings', () => callback());
   },
+  onPlamoTranslateRequest: (
+    callback: (payload: {
+      requestId: string;
+      text: string;
+      detectedLanguage?: string;
+      targetLang: string;
+      model: string;
+      context?: string;
+      glossary?: Array<{ source: string; target: string }>;
+    }) => void,
+  ) => {
+    ipcRenderer.removeAllListeners('plamo-translate-request');
+    ipcRenderer.on('plamo-translate-request', (_event, payload) => callback(payload));
+  },
+  sendPlamoTranslateResult: (payload: { requestId: string; text?: string; error?: string }) =>
+    ipcRenderer.send('plamo-translate-result', payload),
+  sendDownloadProgress: (progress: string) =>
+    ipcRenderer.send('download-progress-from-renderer', progress),
 
   // Debugging
   log: (message: string) => ipcRenderer.send('renderer-log', message),

@@ -50,6 +50,10 @@ export default defineConfig({
           dest: '.',
           rename: 'vad.bundle.min.js',
         },
+        {
+          src: 'node_modules/@wllama/wllama/esm/wasm/wllama.wasm',
+          dest: '.',
+        },
       ],
     }),
   ],

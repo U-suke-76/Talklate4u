@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { PlamoLocalService } from '../services/wllama/WllamaEngine';
 
 export interface ServerStatusResult {
   success: boolean;
@@ -32,8 +33,11 @@ export function useServerStatus(
 
     // If downloading, update statusText to show progress
     // If NOT downloading, show Ready/Offline status
+    const plamoStatus = PlamoLocalService.getInstance().getStatus();
     if (res.isDownloading && res.progress) {
       setStatusText(res.progress);
+    } else if (plamoStatus.loading && plamoStatus.progress) {
+      setStatusText(plamoStatus.progress);
     } else {
       // Check if we are currently showing a "Downloading" status but the server says it's done.
       // We also check !isListeningRef.current to perform normal updates.
@@ -47,16 +51,16 @@ export function useServerStatus(
     }
 
     if (res.success && !lastServerStatus.current) {
-      addSystemLog('Whisper Server is Ready');
+      addSystemLog('ASR Server is Ready');
       // Validate additional config on successful connection
       const cfg = (await window.electronAPI.loadConfig()) as {
-        llm?: { apiKey?: string };
-        whisper?: { model?: string };
+        llm?: { provider?: string; apiKey?: string };
+        whisper?: { provider?: string; model?: string };
       };
-      if (!cfg?.llm?.apiKey) {
+      if (cfg?.llm?.provider !== 'plamo-local' && !cfg?.llm?.apiKey) {
         addSystemLog('WARNING: Groq API Key is missing. Translation will not work.');
       }
-      if (!cfg?.whisper?.model) {
+      if (cfg?.whisper?.provider !== 'sensevoice' && !cfg?.whisper?.model) {
         addSystemLog('WARNING: No Whisper model selected.');
       }
     } else if (!res.success && !res.isDownloading && lastServerStatus.current !== false) {
