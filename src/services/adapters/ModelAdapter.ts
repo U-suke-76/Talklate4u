@@ -68,10 +68,14 @@ function formatGemmaLangDesc(lang?: string): string {
 
 /**
  * 1. PLaMo 3 Translate Adapter (0.8B / 2B / 8B / 31B)
- * Works identically on Local WebGPU (Wllama) and Remote OpenAI-compatible servers (e.g., Colab llama-server).
+ * - `local`: Local WebGPU (Wllama). Sends a system message carrying the options plus PFML fallback.
+ * - `remote`: OpenAI-compatible servers (e.g., Colab vLLM). The official chat template rejects
+ *   `system` messages, so only the user message is sent and options go via `chat_template_kwargs`.
  */
 export class PlamoAdapter implements IModelAdapter {
   public readonly family = 'plamo' as const;
+
+  public constructor(private readonly mode: 'local' | 'remote' = 'local') {}
 
   public buildRequest(input: AdapterInput): AdapterRequestPayload {
     const targetCode = normalizeLangCode(input.targetLangName) || 'ja';
@@ -90,8 +94,17 @@ export class PlamoAdapter implements IModelAdapter {
       form: 'plain' as const,
     };
 
-    const systemMessage = buildPlamoSystemMessage(templateOptions);
     const kwargs = buildPlamoChatTemplateKwargs(templateOptions);
+
+    if (this.mode === 'remote') {
+      return {
+        messages: [{ role: 'user', content: input.text }],
+        stop: PLAMO_STOP_TOKENS,
+        chat_template_kwargs: kwargs,
+      };
+    }
+
+    const systemMessage = buildPlamoSystemMessage(templateOptions);
     const fallbackPrompt = buildPlamoPfmlPrompt({
       text: input.text,
       ...templateOptions,
@@ -236,7 +249,8 @@ export class StandardChatAdapter implements IModelAdapter {
   }
 }
 
-const plamoAdapter = new PlamoAdapter();
+const plamoLocalAdapter = new PlamoAdapter('local');
+const plamoRemoteAdapter = new PlamoAdapter('remote');
 const qwenAdapter = new QwenAdapter();
 const gemmaAdapter = new GemmaAdapter();
 const gptOssAdapter = new GptOssAdapter();
@@ -244,12 +258,12 @@ const standardAdapter = new StandardChatAdapter();
 
 export function resolveModelAdapter(modelName?: string, provider?: string): IModelAdapter {
   if (provider === 'plamo-local') {
-    return plamoAdapter;
+    return plamoLocalAdapter;
   }
 
   const lower = (modelName || '').trim().toLowerCase();
   if (lower.includes('plamo')) {
-    return plamoAdapter;
+    return plamoRemoteAdapter;
   }
   if (lower.includes('qwen')) {
     return qwenAdapter;
