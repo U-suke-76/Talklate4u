@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ui: Added `SenseVoice-Small` ASR provider and `PLaMo 3 Translate (Local WebGPU)` LLM provider options in `SettingsModal.tsx`.
 - docs: Added `Built with PLaMo` attribution and PLaMo Community License notices to `SettingsModal.tsx`, `App.tsx`, `README.md`, `README.ja.md`, and `README.ko.md`.
 - docs: Added Architecture Principles (strict separation between LLM Transport Providers and Model-Family Adapters) to `.agent/rules/target.md`.
+- refactor: Centralized configuration schemas, TypeScript types, and default values in `src/types/config.ts` and strengthened IPC type definitions in `src/electron.d.ts`.
+- refactor: Split `SettingsModal.tsx` into modular tab components (`src/components/settings/GeneralSettingsTab.tsx`, `WhisperSettingsTab.tsx`, `LlmSettingsTab.tsx`, `VadSettingsTab.tsx`).
+- refactor: Extracted streaming file download logic with `.part` file handling into `src/utils/FileDownloader.ts` and unified `WhisperManager` and `SenseVoiceManager` behind `src/server/AsrService.ts`.
+- refactor: Unified directional glossary matching and target language code resolution across `PromptFactory.ts` and `TranslationService.ts`.
 - refactor: Separated LLM transport providers (`plamo-local` WebGPU / `groq` / `openai`) from model-family adapters (`ModelAdapter.ts`: `PlamoAdapter`, `QwenAdapter`, `GemmaAdapter`, `GptOssAdapter`, `StandardChatAdapter`), unifying local WebGPU (`WllamaEngine.ts`) and remote OpenAI-compatible servers (e.g. Bionic / LM Studio / Google Colab `llama-server`) into a single adapter-driven pipeline.
 - fix: Normalized OpenAI-compatible ASR and LLM `baseUrl` endpoints (`/v1/models`, `/v1/audio/transcriptions`, `/v1/chat/completions`) in `WhisperManager.ts` and `TranslationService.ts`.
 

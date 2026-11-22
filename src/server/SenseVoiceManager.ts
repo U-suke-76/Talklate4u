@@ -2,10 +2,9 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { app } from 'electron';
 import { EventEmitter } from 'events';
-import axios from 'axios';
-import { Readable } from 'stream';
 import { ConfigManager } from '../managers/ConfigManager';
 import { resolveLanguage } from '../utils/detectLanguage';
+import { downloadFileWithProgress } from '../utils/FileDownloader';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const sherpaOnnx = require('sherpa-onnx-node');
@@ -89,56 +88,6 @@ export class SenseVoiceManager extends EventEmitter {
     return { running: this.recognizer !== null };
   }
 
-  private async downloadFile(url: string, destPath: string, label: string): Promise<void> {
-    const response = await axios.get<Readable>(url, {
-      responseType: 'stream',
-    });
-
-    const total = parseInt(String(response.headers['content-length'] ?? '0'), 10);
-    let current = 0;
-    let lastPct = -1;
-
-    const tempPath = `${destPath}.part`;
-    const writer = fs.createWriteStream(tempPath);
-
-    await new Promise<void>((resolve, reject) => {
-      const stream = response.data;
-      stream.on('data', (chunk: Buffer) => {
-        current += chunk.length;
-        if (total > 0) {
-          const pct = Math.floor((current / total) * 100);
-          if (pct > lastPct) {
-            lastPct = pct;
-            this.downloadProgress = `Downloading ${label}: ${pct}%`;
-            this.emit('download-progress', this.downloadProgress);
-          }
-        }
-      });
-
-      stream.pipe(writer);
-
-      writer.on('finish', () => {
-        try {
-          if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
-          fs.renameSync(tempPath, destPath);
-          resolve();
-        } catch (e) {
-          reject(e);
-        }
-      });
-
-      writer.on('error', (err: Error) => {
-        writer.close();
-        try {
-          if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-        } catch {
-          /* ignore */
-        }
-        reject(err);
-      });
-    });
-  }
-
   public async ensureModelsDownloaded(): Promise<void> {
     const modelPath = path.join(this.modelsDir, MODEL_FILENAME);
     const tokensPath = path.join(this.modelsDir, TOKENS_FILENAME);
@@ -152,21 +101,29 @@ export class SenseVoiceManager extends EventEmitter {
       if (!fs.existsSync(tokensPath)) {
         this.downloadProgress = 'Downloading SenseVoice tokens.txt...';
         this.emit('download-progress', this.downloadProgress);
-        await this.downloadFile(
-          `${HF_BASE_URL}/${TOKENS_FILENAME}`,
-          tokensPath,
-          'SenseVoice tokens.txt',
-        );
+        await downloadFileWithProgress({
+          url: `${HF_BASE_URL}/${TOKENS_FILENAME}`,
+          destPath: tokensPath,
+          label: 'SenseVoice tokens.txt',
+          onProgress: (msg) => {
+            this.downloadProgress = msg;
+            this.emit('download-progress', this.downloadProgress);
+          },
+        });
       }
 
       if (!fs.existsSync(modelPath)) {
         this.downloadProgress = 'Downloading SenseVoice model.int8.onnx...';
         this.emit('download-progress', this.downloadProgress);
-        await this.downloadFile(
-          `${HF_BASE_URL}/${MODEL_FILENAME}`,
-          modelPath,
-          'SenseVoice-Small (INT8)',
-        );
+        await downloadFileWithProgress({
+          url: `${HF_BASE_URL}/${MODEL_FILENAME}`,
+          destPath: modelPath,
+          label: 'SenseVoice-Small (INT8)',
+          onProgress: (msg) => {
+            this.downloadProgress = msg;
+            this.emit('download-progress', this.downloadProgress);
+          },
+        });
       }
     } finally {
       this.isDownloading = false;

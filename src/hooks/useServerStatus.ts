@@ -24,7 +24,7 @@ export function useServerStatus(
   const lastServerStatus = useRef<boolean | null>(null);
 
   const checkServer = useCallback(async () => {
-    const res = (await window.electronAPI.checkWhisperStatus()) as ServerStatusResult;
+    const res = await window.electronAPI.checkWhisperStatus();
     setServerStatus(res.success);
 
     // Check overlay status
@@ -53,10 +53,7 @@ export function useServerStatus(
     if (res.success && !lastServerStatus.current) {
       addSystemLog('ASR Server is Ready');
       // Validate additional config on successful connection
-      const cfg = (await window.electronAPI.loadConfig()) as {
-        llm?: { provider?: string; apiKey?: string };
-        whisper?: { provider?: string; model?: string };
-      };
+      const cfg = await window.electronAPI.loadConfig();
       if (cfg?.llm?.provider !== 'plamo-local' && !cfg?.llm?.apiKey) {
         addSystemLog('WARNING: Groq API Key is missing. Translation will not work.');
       }

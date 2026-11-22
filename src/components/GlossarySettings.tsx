@@ -1,13 +1,7 @@
 import React, { useState } from 'react';
+import { GlossaryEntry } from '../types/config';
 
-export interface GlossaryEntry {
-  id: string;
-  sourceText: string;
-  sourceLang: string;
-  targetText: string;
-  targetLang: string;
-  bidirectional?: boolean;
-}
+export type { GlossaryEntry };
 
 interface GlossarySettingsProps {
   entries: GlossaryEntry[];

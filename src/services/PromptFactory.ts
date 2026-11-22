@@ -1,6 +1,7 @@
 export interface PromptResult {
   instruction: string;
   targetLang: string;
+  targetLangCode: 'ja' | 'ko' | 'en';
 }
 
 export class PromptFactory {
@@ -31,6 +32,7 @@ STRICT CONFIG:
     if (configuredTarget === 'ja') {
       return {
         targetLang: 'Japanese',
+        targetLangCode: 'ja',
         instruction:
           'Translate the input text into **JAPANESE**.\nSTRICT RULE: The output must be 100% Japanese. If proper noun, TRANSLITERATE to Katakana. Do NOT use Hangul.',
       };
@@ -38,6 +40,7 @@ STRICT CONFIG:
     if (configuredTarget === 'ko') {
       return {
         targetLang: 'Korean',
+        targetLangCode: 'ko',
         instruction:
           'Translate the input text into **KOREAN**.\nSTRICT RULE: The output must be 100% Korean. If proper noun, TRANSLITERATE to Hangul. ABSOLUTELY NO KANJI/KANA.',
       };
@@ -45,6 +48,7 @@ STRICT CONFIG:
     if (configuredTarget === 'en') {
       return {
         targetLang: 'English',
+        targetLangCode: 'en',
         instruction: this.EN_INSTRUCTION,
       };
     }
@@ -55,20 +59,33 @@ STRICT CONFIG:
     // ja-ko (Default)
     if (configuredTarget === 'ja-ko' || configuredTarget === 'auto') {
       if (sourceLang === 'ja') {
-        return { targetLang: 'Korean', instruction: this.KO_INSTRUCTION };
+        return {
+          targetLang: 'Korean',
+          targetLangCode: 'ko',
+          instruction: this.KO_INSTRUCTION,
+        };
       } else {
-        return { targetLang: 'Japanese', instruction: this.JA_INSTRUCTION };
+        return {
+          targetLang: 'Japanese',
+          targetLangCode: 'ja',
+          instruction: this.JA_INSTRUCTION,
+        };
       }
     }
 
     // ja-en
     if (configuredTarget === 'ja-en') {
       if (sourceLang === 'ja') {
-        return { targetLang: 'English', instruction: this.EN_INSTRUCTION };
+        return {
+          targetLang: 'English',
+          targetLangCode: 'en',
+          instruction: this.EN_INSTRUCTION,
+        };
       } else {
         // En -> Ja
         return {
           targetLang: 'Japanese',
+          targetLangCode: 'ja',
           instruction: 'Translate the input text into **JAPANESE**.',
         };
       }
@@ -77,11 +94,16 @@ STRICT CONFIG:
     // ko-en
     if (configuredTarget === 'ko-en') {
       if (sourceLang === 'ko') {
-        return { targetLang: 'English', instruction: this.EN_INSTRUCTION };
+        return {
+          targetLang: 'English',
+          targetLangCode: 'en',
+          instruction: this.EN_INSTRUCTION,
+        };
       } else {
         // En -> Ko
         return {
           targetLang: 'Korean',
+          targetLangCode: 'ko',
           instruction: `Translate the input text into **KOREAN**.
 STRICT CONFIG:
 1. **OUTPUT SCRIPT**: **HANGUL ONLY**.
@@ -96,6 +118,7 @@ STRICT CONFIG:
     // Fallback
     return {
       targetLang: 'Japanese',
+      targetLangCode: 'ja',
       instruction:
         'Translate the input text into **JAPANESE**.\nSTRICT RULE: NO COPYING source text. Output MUST be 100% Japanese. If unclear, guess or exclude it.',
     };

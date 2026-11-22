@@ -6,9 +6,9 @@ import { EventEmitter } from 'events';
 import { ConfigManager } from '../managers/ConfigManager';
 import axios, { AxiosRequestConfig } from 'axios';
 import FormData from 'form-data';
-import { Readable } from 'stream';
 import * as http from 'http';
 import { resolveLanguage } from '../utils/detectLanguage';
+import { downloadFileWithProgress } from '../utils/FileDownloader';
 
 const IS_DEV = process.env.NODE_ENV === 'development';
 const PROJECT_ROOT = process.cwd();
@@ -325,52 +325,14 @@ export class WhisperManager extends EventEmitter {
     this.emit('download-progress', this.downloadProgress);
 
     try {
-      const response = await axios.get<Readable>(url, {
-        responseType: 'stream',
-      });
-
-      const total = parseInt(String(response.headers['content-length'] ?? '0'), 10);
-      let current = 0;
-      let lastPct = 0;
-
-      const tempPath = destPath + '.part';
-      const writer = fs.createWriteStream(tempPath);
-
-      await new Promise<void>((resolve, reject) => {
-        const stream = response.data;
-        stream.on('data', (chunk: Buffer) => {
-          current += chunk.length;
-          if (total > 0) {
-            const pct = Math.floor((current / total) * 100);
-            if (pct > lastPct) {
-              lastPct = pct;
-              this.downloadProgress = `Downloading ${modelName}: ${pct}%`;
-              this.emit('download-progress', this.downloadProgress);
-            }
-          }
-        });
-
-        stream.pipe(writer);
-
-        writer.on('finish', () => {
-          try {
-            if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
-            fs.renameSync(tempPath, destPath);
-            resolve();
-          } catch (e) {
-            reject(e);
-          }
-        });
-
-        writer.on('error', (err: Error) => {
-          writer.close();
-          try {
-            if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-          } catch {
-            /* ignore */
-          }
-          reject(err);
-        });
+      await downloadFileWithProgress({
+        url,
+        destPath,
+        label: modelName,
+        onProgress: (msg) => {
+          this.downloadProgress = msg;
+          this.emit('download-progress', this.downloadProgress);
+        },
       });
     } catch (error) {
       console.error(`[WhisperManager] Download failed:`, error);

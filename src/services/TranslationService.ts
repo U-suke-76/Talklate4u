@@ -154,13 +154,24 @@ export class TranslationService {
     }
   }
 
-  private getGlossaryBlock(sourceLang: string, targetLangCode: string): string {
+  /**
+   * Resolves glossary pairs matching the current translation direction (`sourceLang` -> `targetLangCode`).
+   * If `filterByInputText` is provided, only entries appearing in the input text (case-insensitive) are returned.
+   */
+  private resolveMatchedGlossaryEntries(
+    sourceLang: string,
+    targetLangCode: string,
+    filterByInputText?: string,
+  ): Array<{ source: string; target: string }> {
     const config = ConfigManager.getInstance().getConfig();
     const glossary = config.glossary || [];
+    if (glossary.length === 0) return [];
 
-    const lines: string[] = [];
+    const lowerText = filterByInputText?.toLowerCase();
+    const matched: Array<{ source: string; target: string }> = [];
+    const seen = new Set<string>();
 
-    glossary.forEach((entry) => {
+    for (const entry of glossary) {
       const isUniMatch =
         (entry.sourceLang === sourceLang || sourceLang === 'Unknown') &&
         entry.targetLang === targetLangCode;
@@ -170,21 +181,34 @@ export class TranslationService {
         (entry.targetLang === sourceLang || sourceLang === 'Unknown') &&
         entry.sourceLang === targetLangCode;
 
+      let pair: { source: string; target: string } | null = null;
       if (isUniMatch) {
-        // Direction: Source -> Target
-        lines.push(`- ${entry.sourceText}: ${entry.targetText}`);
+        pair = { source: entry.sourceText, target: entry.targetText };
       } else if (isBiMatchReversed) {
-        // Direction: Target -> Source (because we are translating TO Source)
-        lines.push(`- ${entry.targetText}: ${entry.sourceText}`);
+        pair = { source: entry.targetText, target: entry.sourceText };
       }
-    });
 
-    if (lines.length === 0) return '';
+      if (!pair || !pair.source) continue;
+      if (lowerText !== undefined && !lowerText.includes(pair.source.toLowerCase())) {
+        continue;
+      }
 
-    // Deduplicate lines just in case
-    const uniqueLines = Array.from(new Set(lines));
+      const key = `${pair.source}=>${pair.target}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        matched.push(pair);
+      }
+    }
 
-    return `Use the following term definitions strictly:\n` + uniqueLines.join('\n');
+    return matched;
+  }
+
+  private getGlossaryBlock(sourceLang: string, targetLangCode: string): string {
+    const matched = this.resolveMatchedGlossaryEntries(sourceLang, targetLangCode);
+    if (matched.length === 0) return '';
+
+    const lines = matched.map((pair) => `- ${pair.source}: ${pair.target}`);
+    return `Use the following term definitions strictly:\n` + lines.join('\n');
   }
 
   private getSystemPrompt(detectedLanguage?: string): string {
@@ -196,15 +220,11 @@ export class TranslationService {
     const config = ConfigManager.getInstance().getConfig();
     const configuredTarget = config.translation?.targetLang || 'auto';
 
-    const { instruction, targetLang } = PromptFactory.getPrompt(configuredTarget, detectedLanguage);
+    const { instruction, targetLang, targetLangCode } = PromptFactory.getPrompt(
+      configuredTarget,
+      detectedLanguage,
+    );
     const sourceLang = detectedLanguage || 'Unknown';
-
-    // Map targetLang Name (from Factory) to Code (for Glossary)
-    let targetLangCode = '';
-    if (targetLang === 'Japanese') targetLangCode = 'ja';
-    else if (targetLang === 'Korean') targetLangCode = 'ko';
-    else if (targetLang === 'English') targetLangCode = 'en';
-
     const glossaryBlock = this.getGlossaryBlock(sourceLang, targetLangCode);
 
     return this.promptTemplate({
@@ -220,52 +240,11 @@ export class TranslationService {
     detectedLanguage?: string,
   ): Array<{ source: string; target: string }> {
     const config = ConfigManager.getInstance().getConfig();
-    const glossary = config.glossary || [];
-    if (glossary.length === 0) return [];
-
     const configuredTarget = config.translation?.targetLang || 'auto';
-    const { targetLang } = PromptFactory.getPrompt(configuredTarget, detectedLanguage);
+    const { targetLangCode } = PromptFactory.getPrompt(configuredTarget, detectedLanguage);
     const sourceLang = detectedLanguage || 'Unknown';
 
-    let targetLangCode = '';
-    if (targetLang === 'Japanese') targetLangCode = 'ja';
-    else if (targetLang === 'Korean') targetLangCode = 'ko';
-    else if (targetLang === 'English') targetLangCode = 'en';
-
-    const lowerText = text.toLowerCase();
-    const matched: Array<{ source: string; target: string }> = [];
-    const seen = new Set<string>();
-
-    for (const entry of glossary) {
-      const isUniMatch =
-        (entry.sourceLang === sourceLang || sourceLang === 'Unknown') &&
-        entry.targetLang === targetLangCode;
-
-      const isBiMatchReversed =
-        entry.bidirectional &&
-        (entry.targetLang === sourceLang || sourceLang === 'Unknown') &&
-        entry.sourceLang === targetLangCode;
-
-      if (isUniMatch && entry.sourceText && lowerText.includes(entry.sourceText.toLowerCase())) {
-        const key = `${entry.sourceText}=>${entry.targetText}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          matched.push({ source: entry.sourceText, target: entry.targetText });
-        }
-      } else if (
-        isBiMatchReversed &&
-        entry.targetText &&
-        lowerText.includes(entry.targetText.toLowerCase())
-      ) {
-        const key = `${entry.targetText}=>${entry.sourceText}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          matched.push({ source: entry.targetText, target: entry.sourceText });
-        }
-      }
-    }
-
-    return matched;
+    return this.resolveMatchedGlossaryEntries(sourceLang, targetLangCode, text);
   }
 
   public async translate(

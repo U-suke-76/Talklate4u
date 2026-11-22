@@ -89,13 +89,12 @@ const App: React.FC = () => {
     window.electronAPI
       .loadConfig()
       .then((cfg) => {
-        const typedCfg = cfg as { llm?: { provider?: string; model?: string } } | null;
-        setLlmProvider(typedCfg?.llm?.provider || '');
-        if (typedCfg?.llm?.provider === 'plamo-local') {
+        setLlmProvider(cfg?.llm?.provider || '');
+        if (cfg?.llm?.provider === 'plamo-local') {
           PlamoLocalService.getInstance()
-            .ensureLoaded(typedCfg.llm.model, (msg) => setStatusText(msg))
+            .ensureLoaded(cfg.llm.model, (msg) => setStatusText(msg))
             .then(() => {
-              addSystemLog(`[PLaMo Local] Ready (${typedCfg.llm?.model || '0.8b'})`);
+              addSystemLog(`[PLaMo Local] Ready (${cfg.llm?.model || '0.8b'})`);
             })
             .catch((e) => {
               addSystemLog(
@@ -129,16 +128,7 @@ const App: React.FC = () => {
   const startRecording = async () => {
     setStatusText('Starting VAD...');
     try {
-      const currentConfig = (await window.electronAPI.loadConfig()) as {
-        app?: { defaultMicName?: string };
-        vad?: {
-          silenceDurationMs?: number;
-          positiveSpeechThreshold?: number;
-          negativeSpeechThreshold?: number;
-          minSpeechMs?: number;
-          volumeThreshold?: number;
-        };
-      };
+      const currentConfig = await window.electronAPI.loadConfig();
       const micLabel = currentConfig?.app?.defaultMicName;
       // 1. Exact Match & Selection
       const mics = await loadMicrophones();
@@ -177,9 +167,7 @@ const App: React.FC = () => {
 
   const handleSettingsSaved = async () => {
     try {
-      const cfg = (await window.electronAPI.loadConfig()) as {
-        llm?: { provider?: string };
-      } | null;
+      const cfg = await window.electronAPI.loadConfig();
       setLlmProvider(cfg?.llm?.provider || '');
     } catch {
       /* ignore */
