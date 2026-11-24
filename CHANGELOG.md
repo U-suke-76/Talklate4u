@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- docs: Added Colab CLI launcher (`docs/colab/start_colab_plamo.sh`) and vLLM server script (`docs/colab/serve_plamo.py`) defaulting to T4 GPU with `pfnet/plamo-3-translate-8b-W4A16`, OpenSSH `ProxyCommand` local port forwarding, optional Google Drive cache (`USE_DRIVE_CACHE=1`), and verified `colab stop` cleanup; updated `docs/colab/README.md` to use Colab CLI as the primary setup while keeping the browser notebook as a fallback (verified end-to-end on Colab T4 + vLLM 0.34.0).
 - docs: Added Google Colab notebook (`docs/colab/plamo3_translate_server.ipynb`) that serves PLaMo 3 Translate 8B as an OpenAI-compatible vLLM server behind a Cloudflare quick tunnel with a generated API key, for manual personal use via the existing `openai` provider (custom Base URL).
 - docs: Added `docs/colab/README.md` with setup, usage, shutdown, and troubleshooting steps for the Colab PLaMo 3 Translate server.
 - feat: Added local SenseVoice-Small ASR engine (`SenseVoiceManager.ts`) powered by `sherpa-onnx-node` with automatic Hugging Face INT8 model download, non-speech/noise event filtering (`<|nospeech|>`, `Breath`, `Cough`, `BGM`, `Speech_Noise`, short filler/Chinese noise guard), and Japanese intra-sentence space removal.
