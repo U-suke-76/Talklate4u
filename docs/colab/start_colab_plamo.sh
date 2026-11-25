@@ -52,23 +52,20 @@ trap cleanup EXIT
 echo "=== Talklate4u PLaMo 3 Translate Server (Colab CLI) ==="
 echo "Session: $SESSION | GPU: $GPU_TYPE | Local URL: http://127.0.0.1:${LOCAL_PORT}/v1"
 
-echo "[1/5] Provisioning Colab GPU runtime ($GPU_TYPE)..."
+echo "[1/4] Provisioning Colab GPU runtime ($GPU_TYPE)..."
 colab new -s "$SESSION" --gpu "$GPU_TYPE"
 
 if [ "$USE_DRIVE_CACHE" = "1" ]; then
-  echo "[2/5] Mounting Google Drive for Hugging Face cache..."
+  echo "[2/4] Mounting Google Drive for Hugging Face cache..."
   colab drivemount -s "$SESSION" || echo "[WARN] Drive mount skipped or failed; continuing without cache."
 else
-  echo "[2/5] Skipping Google Drive mount (USE_DRIVE_CACHE=0)."
+  echo "[2/4] Skipping Google Drive mount (USE_DRIVE_CACHE=0)."
 fi
 
-echo "[3/5] Installing vLLM (>=0.12.0) on Colab..."
-colab install -s "$SESSION" "vllm>=0.12.0"
-
-echo "[4/5] Uploading server script (/content/serve_plamo.py)..."
+echo "[3/4] Uploading server script (/content/serve_plamo.py)..."
 colab upload -s "$SESSION" "${SCRIPT_DIR}/serve_plamo.py" /content/serve_plamo.py
 
-echo "[5/5] Starting vLLM server and opening SSH tunnel (127.0.0.1:${LOCAL_PORT} -> Colab:${REMOTE_PORT})..."
+echo "[4/4] Opening SSH tunnel (127.0.0.1:${LOCAL_PORT} -> Colab:${REMOTE_PORT}), installing vLLM, and starting server..."
 echo "------------------------------------------------------------------"
 echo "Talklate4u Settings:"
 echo "  Provider : openai"
@@ -76,11 +73,11 @@ echo "  Model    : plamo-3-translate-8b"
 echo "  Base URL : http://127.0.0.1:${LOCAL_PORT}/v1"
 echo "  API Key  : dummy"
 echo "------------------------------------------------------------------"
-echo "Streaming /content/vllm.log ... (Wait for 'Application startup complete.')"
+echo "Wait for 'Application startup complete.' below."
 echo "Press Ctrl+C to stop the server and terminate the Colab runtime."
 echo ""
 
-# ProxyCommand + OpenSSH でポートフォワードを張りつつ、vLLM をフォアグラウンド起動してログを直接表示
+# 1 本の OpenSSH トンネル内で vLLM インストール〜サーバー起動まで連続実行（HTTP 429 重複接続を回避）
 ssh \
   -o "ProxyCommand=colab ssh --proxy-mode -s ${SESSION}" \
   -o StrictHostKeyChecking=no \
@@ -88,4 +85,4 @@ ssh \
   -o ExitOnForwardFailure=yes \
   -L "${LOCAL_PORT}:127.0.0.1:${REMOTE_PORT}" \
   root@colab-runtime \
-  "PLAMO_MODEL_ID='${MODEL_ID}' PLAMO_SERVED_NAME='${SERVED_NAME}' PLAMO_MAX_MODEL_LEN='${MAX_MODEL_LEN}' PLAMO_PORT='${REMOTE_PORT}' python3 -u /content/serve_plamo.py 2>&1 | tee /content/vllm.log" || true
+  "(if command -v uv >/dev/null 2>&1; then uv pip install --system 'vllm>=0.12.0'; else pip install -U 'vllm>=0.12.0'; fi) && PLAMO_MODEL_ID='${MODEL_ID}' PLAMO_SERVED_NAME='${SERVED_NAME}' PLAMO_MAX_MODEL_LEN='${MAX_MODEL_LEN}' PLAMO_PORT='${REMOTE_PORT}' python3 -u /content/serve_plamo.py 2>&1 | tee /content/vllm.log" || true
