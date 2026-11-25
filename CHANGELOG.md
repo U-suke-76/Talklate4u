@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- test: Added Vitest unit test suite (`vitest.config.ts`, `npm run test:unit`) covering `ModelAdapter`, `plamoPrompt`, `PromptFactory`, and `detectLanguage` (`tests/unit/`).
+
 - docs: Added Colab CLI launcher (`docs/colab/start_colab_plamo.sh`) and vLLM server script (`docs/colab/serve_plamo.py`) defaulting to T4 GPU with `pfnet/plamo-3-translate-8b-W4A16`, single-session OpenSSH `ProxyCommand` local port forwarding with live `uv`/`pip` install output, optional Google Drive cache (`USE_DRIVE_CACHE=1`), and verified `colab stop` cleanup; updated `docs/colab/README.md` to use Colab CLI as the primary setup while keeping the browser notebook as a fallback (verified end-to-end on Colab T4 + vLLM 0.34.0).
 - docs: Added Google Colab notebook (`docs/colab/plamo3_translate_server.ipynb`) that serves PLaMo 3 Translate 8B as an OpenAI-compatible vLLM server behind a Cloudflare quick tunnel with a generated API key, for manual personal use via the existing `openai` provider (custom Base URL).
 - docs: Added `docs/colab/README.md` with setup, usage, shutdown, and troubleshooting steps for the Colab PLaMo 3 Translate server.
