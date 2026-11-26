@@ -1,6 +1,10 @@
+import json
 import os
 import subprocess
 import sys
+import threading
+import time
+import urllib.request
 
 # Google Drive がマウントされていればモデルキャッシュ先として利用する（2回目以降の起動短縮）
 DRIVE_CACHE_DIR = '/content/drive/MyDrive/huggingface_cache'
@@ -50,4 +54,41 @@ cmd = [
   PORT,
 ]
 
+def run_warmup(port: str, served_name: str) -> None:
+  models_url = f'http://127.0.0.1:{port}/v1/models'
+  chat_url = f'http://127.0.0.1:{port}/v1/chat/completions'
+  while True:
+    try:
+      with urllib.request.urlopen(models_url, timeout=2) as res:
+        if res.status == 200:
+          break
+    except Exception:
+      time.sleep(1)
+
+  try:
+    start = time.time()
+    payload = json.dumps(
+      {
+        'model': served_name,
+        'messages': [{'role': 'user', 'content': 'Hello'}],
+        'chat_template_kwargs': {'target_lang': 'ja', 'form': 'plain'},
+        'max_tokens': 16,
+        'temperature': 0.0,
+      }
+    ).encode('utf-8')
+    req = urllib.request.Request(
+      chat_url,
+      data=payload,
+      headers={'Content-Type': 'application/json', 'Authorization': 'Bearer dummy'},
+      method='POST',
+    )
+    with urllib.request.urlopen(req, timeout=60) as res:
+      res.read()
+    elapsed_ms = int((time.time() - start) * 1000)
+    print(f'[INFO] Warmup complete ({elapsed_ms}ms). Ready for low-latency translation!', flush=True)
+  except Exception as e:
+    print(f'[WARN] Warmup request failed (server is still usable): {e}', flush=True)
+
+
+threading.Thread(target=run_warmup, args=(PORT, SERVED_NAME), daemon=True).start()
 sys.exit(subprocess.call(cmd))

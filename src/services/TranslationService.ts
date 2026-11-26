@@ -10,6 +10,8 @@ import Handlebars from 'handlebars';
 import { PathUtils } from '../utils/PathUtils';
 import { PromptFactory } from './PromptFactory';
 import { resolveModelAdapter } from './adapters/ModelAdapter';
+import { GlossaryPackMatcher, parseTsvGlossary } from './glossary/TsvGlossaryPack';
+import type { GlossaryPack } from '../types/config';
 
 interface ConversationTurn {
   original: string;
@@ -24,6 +26,8 @@ export class TranslationService {
   private currentModelIndex = 0;
   private subtitleIdCounter = 1;
   private history: ConversationTurn[] = [];
+  private packMatcher: GlossaryPackMatcher | null = null;
+  private packMatcherKey = '';
   private readonly MAX_HISTORY_TURNS = 6;
   private readonly HISTORY_TTL_MS = 2 * 60 * 1000; // 2 minutes context window
 
@@ -203,15 +207,62 @@ export class TranslationService {
     return matched;
   }
 
-  private getGlossaryBlock(sourceLang: string, targetLangCode: string): string {
-    const matched = this.resolveMatchedGlossaryEntries(sourceLang, targetLangCode);
+  /**
+   * Returns a matcher built from enabled TSV glossary packs (rebuilt only when packs change).
+   */
+  private getPackMatcher(packs: GlossaryPack[] | undefined): GlossaryPackMatcher | null {
+    const enabled = (packs || []).filter((p) => p.enabled && p.contents?.length > 0);
+    if (enabled.length === 0) return null;
+
+    const key = enabled
+      .map((p) => `${p.id}:${p.contents.reduce((n, c) => n + c.length, 0)}`)
+      .join('|');
+    if (!this.packMatcher || this.packMatcherKey !== key) {
+      this.packMatcher = new GlossaryPackMatcher(
+        parseTsvGlossary(enabled.flatMap((p) => p.contents)),
+      );
+      this.packMatcherKey = key;
+    }
+    return this.packMatcher;
+  }
+
+  /**
+   * Combines user glossary entries with TSV pack terms found in the input text.
+   * User entries take priority; pack terms are injected only when they appear in `text`.
+   */
+  private resolveCombinedGlossary(
+    sourceLang: string,
+    targetLangCode: string,
+    text: string | undefined,
+    filterUserEntriesByText: boolean,
+  ): Array<{ source: string; target: string }> {
+    const user = this.resolveMatchedGlossaryEntries(
+      sourceLang,
+      targetLangCode,
+      filterUserEntriesByText ? text : undefined,
+    );
+    if (!text) return user;
+
+    const config = ConfigManager.getInstance().getConfig();
+    const matcher = this.getPackMatcher(config.glossaryPacks);
+    if (!matcher) return user;
+
+    const seen = new Set(user.map((p) => p.source.toLowerCase()));
+    const packTerms = matcher
+      .match(text, sourceLang, targetLangCode)
+      .filter((p) => !seen.has(p.source.toLowerCase()));
+    return [...user, ...packTerms];
+  }
+
+  private getGlossaryBlock(sourceLang: string, targetLangCode: string, text?: string): string {
+    const matched = this.resolveCombinedGlossary(sourceLang, targetLangCode, text, false);
     if (matched.length === 0) return '';
 
     const lines = matched.map((pair) => `- ${pair.source}: ${pair.target}`);
     return `Use the following term definitions strictly:\n` + lines.join('\n');
   }
 
-  private getSystemPrompt(detectedLanguage?: string): string {
+  private getSystemPrompt(detectedLanguage?: string, text?: string): string {
     if (!this.promptTemplate) {
       this.loadSystemPromptTemplate();
       if (!this.promptTemplate) return 'You are a professional translator.'; // Fallback
@@ -225,7 +276,7 @@ export class TranslationService {
       detectedLanguage,
     );
     const sourceLang = detectedLanguage || 'Unknown';
-    const glossaryBlock = this.getGlossaryBlock(sourceLang, targetLangCode);
+    const glossaryBlock = this.getGlossaryBlock(sourceLang, targetLangCode, text);
 
     return this.promptTemplate({
       INSTRUCTION: instruction,
@@ -244,7 +295,7 @@ export class TranslationService {
     const { targetLangCode } = PromptFactory.getPrompt(configuredTarget, detectedLanguage);
     const sourceLang = detectedLanguage || 'Unknown';
 
-    return this.resolveMatchedGlossaryEntries(sourceLang, targetLangCode, text);
+    return this.resolveCombinedGlossary(sourceLang, targetLangCode, text, true);
   }
 
   public async translate(
@@ -322,7 +373,7 @@ export class TranslationService {
 
         const configuredTarget = config.translation?.targetLang || 'auto';
         const { targetLang } = PromptFactory.getPrompt(configuredTarget, detectedLanguage);
-        const systemPrompt = this.getSystemPrompt(detectedLanguage);
+        const systemPrompt = this.getSystemPrompt(detectedLanguage, text);
         const recentHistory = this.getActiveHistory();
         const matchedGlossary = this.getPlamoGlossary(text, detectedLanguage);
         const adapter = resolveModelAdapter(modelToUse, config.llm.provider);

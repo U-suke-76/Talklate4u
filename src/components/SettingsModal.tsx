@@ -69,6 +69,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           },
         },
         glossary: rawConfig.glossary || [],
+        glossaryPacks: rawConfig.glossaryPacks || [],
       };
 
       setConfig(merged);
@@ -284,6 +285,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <GlossarySettings
             entries={config.glossary || []}
             onChange={(entries) => setConfig({ ...config, glossary: entries })}
+            packs={config.glossaryPacks || []}
+            onPacksChange={(packs) => setConfig({ ...config, glossaryPacks: packs })}
           />
         )}
 

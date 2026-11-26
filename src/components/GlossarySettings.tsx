@@ -1,14 +1,80 @@
 import React, { useState } from 'react';
-import { GlossaryEntry } from '../types/config';
+import { GlossaryEntry, GlossaryPack } from '../types/config';
+import {
+  countTsvRows,
+  extractTsvFromZip,
+  isTsvContent,
+} from '../services/glossary/TsvGlossaryPack';
 
 export type { GlossaryEntry };
 
 interface GlossarySettingsProps {
   entries: GlossaryEntry[];
   onChange: (entries: GlossaryEntry[]) => void;
+  packs: GlossaryPack[];
+  onPacksChange: (packs: GlossaryPack[]) => void;
 }
 
-export const GlossarySettings: React.FC<GlossarySettingsProps> = ({ entries, onChange }) => {
+export const GlossarySettings: React.FC<GlossarySettingsProps> = ({
+  entries,
+  onChange,
+  packs,
+  onPacksChange,
+}) => {
+  const [importError, setImportError] = useState('');
+
+  const handleImportPacks = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0) return;
+
+    setImportError('');
+    const imported: GlossaryPack[] = [];
+    const errors: string[] = [];
+    for (const file of files) {
+      try {
+        let contents: string[];
+        if (/\.zip$/i.test(file.name)) {
+          const zip = new Uint8Array(await file.arrayBuffer());
+          contents = extractTsvFromZip(zip)
+            .map((f) => f.content)
+            .filter(isTsvContent);
+        } else {
+          const text = await file.text();
+          contents = isTsvContent(text) ? [text] : [];
+        }
+
+        if (contents.length === 0) {
+          errors.push(`"${file.name}" contains no valid TSV (header row must be tab-separated).`);
+          continue;
+        }
+        imported.push({
+          id: crypto.randomUUID(),
+          name: file.name.replace(/\.(tsv|txt|zip)$/i, ''),
+          enabled: true,
+          contents,
+          rowCount: contents.reduce((n, c) => n + countTsvRows(c), 0),
+        });
+      } catch (err) {
+        errors.push(`Failed to read "${file.name}": ${(err as Error).message}`);
+      }
+    }
+    setImportError(errors.join(' '));
+
+    if (imported.length > 0) {
+      // Re-importing a pack with the same name replaces the old one.
+      const names = new Set(imported.map((p) => p.name));
+      onPacksChange([...packs.filter((p) => !names.has(p.name)), ...imported]);
+    }
+  };
+
+  const togglePack = (id: string) => {
+    onPacksChange(packs.map((p) => (p.id === id ? { ...p, enabled: !p.enabled } : p)));
+  };
+
+  const deletePack = (id: string) => {
+    onPacksChange(packs.filter((p) => p.id !== id));
+  };
   const [newEntry, setNewEntry] = useState<Omit<GlossaryEntry, 'id'>>({
     sourceText: '',
     sourceLang: 'en',
@@ -191,6 +257,71 @@ export const GlossarySettings: React.FC<GlossarySettingsProps> = ({ entries, onC
                   <button
                     className="btn btn-xs btn-error btn-outline"
                     onClick={() => handleDelete(entry.id)}
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* TSV Glossary Packs */}
+      <div className="space-y-2 pt-4 border-t border-gray-700">
+        <div className="flex items-center justify-between">
+          <h4 className="text-md font-bold text-gray-300">Glossary Packs (ZIP / TSV)</h4>
+          <label className="btn btn-sm btn-outline btn-primary">
+            Import ZIP / TSV
+            <input
+              type="file"
+              accept=".zip,.tsv,.txt"
+              multiple
+              className="hidden"
+              onChange={handleImportPacks}
+            />
+          </label>
+        </div>
+        <p className="text-xs text-gray-400">
+          A ZIP pack may bundle multiple TSV files. TSV header:{' '}
+          <code>pos&#9;ja&#9;en&#9;ko&#9;zh</code> (aliases separated by <code>/</code>). Only terms
+          found in each utterance are sent to the LLM. Packs are not used for Whisper prompts.
+        </p>
+        {importError && <div className="text-xs text-error">{importError}</div>}
+        <table className="table table-sm w-full bg-base-900 border border-gray-700">
+          <thead>
+            <tr className="bg-gray-800 text-gray-300">
+              <th className="w-16">On</th>
+              <th>Pack</th>
+              <th className="w-24">Rows</th>
+              <th className="w-16">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {packs.length === 0 && (
+              <tr>
+                <td colSpan={4} className="text-center text-gray-500 py-4">
+                  No packs imported.
+                </td>
+              </tr>
+            )}
+            {packs.map((pack) => (
+              <tr key={pack.id} className="hover:bg-gray-800">
+                <td>
+                  <input
+                    type="checkbox"
+                    title="Enable pack"
+                    className="toggle toggle-sm toggle-primary"
+                    checked={pack.enabled}
+                    onChange={() => togglePack(pack.id)}
+                  />
+                </td>
+                <td className="font-bold">{pack.name}</td>
+                <td className="text-gray-400">{pack.rowCount}</td>
+                <td>
+                  <button
+                    className="btn btn-xs btn-error btn-outline"
+                    onClick={() => deletePack(pack.id)}
                   >
                     Delete
                   </button>

@@ -98,6 +98,21 @@ export const GlossaryEntrySchema = z.object({
 
 export type GlossaryEntry = z.infer<typeof GlossaryEntrySchema>;
 
+/**
+ * Imported multilingual TSV glossary pack (header: `pos\tja\ten\tko\tzh`).
+ * Only terms that appear in the input text are injected into prompts.
+ */
+export const GlossaryPackSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  enabled: z.boolean(),
+  /** Raw TSV file contents (a ZIP pack may contain multiple TSV files). */
+  contents: z.array(z.string()),
+  rowCount: z.number(),
+});
+
+export type GlossaryPack = z.infer<typeof GlossaryPackSchema>;
+
 export const AppConfigSchema = z.object({
   whisper: z.object({
     model: z.string(),
@@ -135,6 +150,7 @@ export const AppConfigSchema = z.object({
     defaultMicName: z.string(),
   }),
   glossary: z.array(GlossaryEntrySchema).optional(),
+  glossaryPacks: z.array(GlossaryPackSchema).optional(),
 });
 
 export type AppConfig = z.infer<typeof AppConfigSchema>;
@@ -178,4 +194,5 @@ export const DEFAULT_CONFIG: AppConfig = {
     },
   },
   glossary: [],
+  glossaryPacks: [],
 };
