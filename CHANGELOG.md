@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- feat: Added automatic post-startup warmup request to `docs/colab/serve_plamo.py` so the first real translation avoids the initial ~3.5s cold-start latency.
+- feat: Added translation quality evaluation CLI (`scripts/eval-translation.ts`, `npm run eval:translation`) supporting YouTube transcripts (`.txt`, `.vtt`, `.srt`), external TSV/ZIP glossaries (`TsvGlossaryPack`), and all `ModelAdapter` families including PLaMo 3 Translate (`PlamoAdapter` remote mode via OpenAI-compatible/vLLM endpoints) and Groq, with Markdown/CSV report output and unit tests (`tests/unit/evalTranslation.test.ts`).
+- feat: Added multilingual glossary pack import (ZIP bundling multiple TSV files, or plain TSV; `pos\tja\ten\tko\tzh`, slash-separated aliases) to the Glossary settings tab with per-pack enable/disable and delete. ZIP extraction uses the lightweight `fflate` library. Packs are stored in `config.glossaryPacks`, and only terms found in each utterance are injected into LLM prompts via a longest-first, non-overlapping matcher with Hangul/ASCII word-boundary guards (`src/services/glossary/TsvGlossaryPack.ts`, `TranslationService.ts`, `GlossarySettings.tsx`).
+- docs: Consolidated agent rules from `.agent/rules/target.md` into root `AGENTS.md`, adding unit test (`npm run test:unit`), OSS glossary privacy, and `git push` safety guidelines.
+- docs: Added agent skills `.agent/skills/release-check/SKILL.md` and `.agent/skills/add-model-adapter/SKILL.md`.
+- test: Added unit tests for `WllamaEngine` and `PlamoLocalService` (`tests/unit/WllamaEngine.test.ts`) covering default OPFS cache loading, `NoModificationAllowedError`/`removeEntry` fallback to `useCache=false`, non-OPFS error propagation, engine reuse, model switching (`0.8b` -> `2b`), and `fallbackPrompt` execution.
 - test: Added Vitest unit test suite (`vitest.config.ts`, `npm run test:unit`) covering `ModelAdapter`, `plamoPrompt`, `PromptFactory`, and `detectLanguage` (`tests/unit/`).
 
 - docs: Added Colab CLI launcher (`docs/colab/start_colab_plamo.sh`) and vLLM server script (`docs/colab/serve_plamo.py`) defaulting to T4 GPU with `pfnet/plamo-3-translate-8b-W4A16`, single-session OpenSSH `ProxyCommand` local port forwarding with live `uv`/`pip` install output, optional Google Drive cache (`USE_DRIVE_CACHE=1`), and verified `colab stop` cleanup; updated `docs/colab/README.md` to use Colab CLI as the primary setup while keeping the browser notebook as a fallback (verified end-to-end on Colab T4 + vLLM 0.34.0).
@@ -30,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- fix: Fixed `WllamaEngine` default WASM URL (`/wllama/single-thread/wllama.wasm` -> `./wllama.wasm` via `new URL('./wllama.wasm', window.location.href).href`) to match the Vite static copy output and added automatic `useCache: false` fallback when Windows OPFS cache throws `removeEntry` / `NoModificationAllowedError` (`src/services/wllama/WllamaEngine.ts`).
+- fix: Preload the PLaMo Local WebGPU model immediately when switching to `plamo-local` in Settings, display a header status badge (`PLaMo Loading...` / `PLaMo Ready` / `PLaMo Error`), and forward download/load progress and inference errors from the renderer to the main process log (`src/App.tsx`).
 - fix: `PlamoAdapter` now has `local` / `remote` modes. For remote OpenAI-compatible servers (e.g., Colab vLLM) it sends only the user message with options in `chat_template_kwargs`, because the official PLaMo 3 Translate chat template rejects `system` messages. Local WebGPU behavior is unchanged.
 - docs: Made `HF_TOKEN` optional in the Colab PLaMo 3 Translate notebook and README (previously the notebook failed when the secret was not registered).
 - docs: Confirmed via Hugging Face API that `pfnet/plamo-3-translate-8b` is not gated (no `HF_TOKEN` needed) and documented that its chat template rejects `system` messages.

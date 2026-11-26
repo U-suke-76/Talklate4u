@@ -42,8 +42,10 @@ export class WllamaEngine {
     this.isInitializing = true;
 
     try {
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      const defaultWasmUrl = `${origin}/wllama/single-thread/wllama.wasm`;
+      const defaultWasmUrl =
+        typeof window !== 'undefined'
+          ? new URL('./wllama.wasm', window.location.href).href
+          : '/wllama.wasm';
 
       const pathConfig: AssetsPathConfig = {
         default: this.options.wasmUrl || defaultWasmUrl,
@@ -76,26 +78,48 @@ export class WllamaEngine {
         `[WllamaEngine] Starting model loading (WebGPU layers: ${this.options.n_gpu_layers}, threads: ${this.options.nThreads ?? 1})...`,
       );
 
-      if (this.options.hfModelId) {
-        console.log(
-          `[WllamaEngine] Loading from HF: ${this.options.hfModelId} / ${this.options.hfFile}`,
-        );
-        await this.wllama.loadModelFromHF(
-          {
-            repo: this.options.hfModelId,
-            file: this.options.hfFile,
-            quant: this.options.hfFile ? undefined : 'Q4_K_M',
-          },
-          downloadParams,
-        );
-        console.log('[WllamaEngine] Model loaded successfully into WebGPU context!');
-      } else if (this.options.modelUrl) {
-        console.log(`[WllamaEngine] Loading from URL: ${this.options.modelUrl}`);
-        await this.wllama.loadModelFromUrl(this.options.modelUrl, downloadParams);
-        console.log('[WllamaEngine] Model loaded successfully into WebGPU context!');
-      } else {
-        throw new Error('hfModelId/hfFile or modelUrl is required');
+      const loadModel = async (useCache: boolean) => {
+        const params = { ...downloadParams, useCache };
+        if (this.options.hfModelId) {
+          console.log(
+            `[WllamaEngine] Loading from HF: ${this.options.hfModelId} / ${this.options.hfFile} (useCache=${useCache})`,
+          );
+          await this.wllama!.loadModelFromHF(
+            {
+              repo: this.options.hfModelId,
+              file: this.options.hfFile,
+              quant: this.options.hfFile ? undefined : 'Q4_K_M',
+            },
+            params,
+          );
+        } else if (this.options.modelUrl) {
+          console.log(
+            `[WllamaEngine] Loading from URL: ${this.options.modelUrl} (useCache=${useCache})`,
+          );
+          await this.wllama!.loadModelFromUrl(this.options.modelUrl, params);
+        } else {
+          throw new Error('hfModelId/hfFile or modelUrl is required');
+        }
+      };
+
+      try {
+        await loadModel(this.options.useCache ?? true);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const isOpfsLockError =
+          msg.includes('removeEntry') ||
+          msg.includes('FileSystemDirectoryHandle') ||
+          msg.includes('NoModificationAllowedError');
+        if (isOpfsLockError && (this.options.useCache ?? true)) {
+          console.warn(
+            '[WllamaEngine] OPFS cache lock detected; retrying model load with useCache=false...',
+          );
+          await loadModel(false);
+        } else {
+          throw err;
+        }
       }
+      console.log('[WllamaEngine] Model loaded successfully into WebGPU context!');
 
       this.isLoaded = true;
     } finally {

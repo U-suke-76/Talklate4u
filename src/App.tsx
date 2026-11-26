@@ -12,6 +12,7 @@ const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [statusText, setStatusText] = useState('Initializing...');
   const [llmProvider, setLlmProvider] = useState<string>('');
+  const [plamoStatus, setPlamoStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -46,6 +47,47 @@ const App: React.FC = () => {
   const { activeMic, loadMicrophones, selectMicrophone, setActiveMic } =
     useMicrophone(addSystemLog);
 
+  const lastPlamoProgressLogRef = useRef<string>('');
+
+  const logPlamoProgress = React.useCallback((msg: string) => {
+    setStatusText(msg);
+    const pctMatch = msg.match(/\((\d+)%\)/);
+    const key = pctMatch ? `${Math.floor(parseInt(pctMatch[1], 10) / 10) * 10}%` : msg;
+    if (lastPlamoProgressLogRef.current !== key) {
+      lastPlamoProgressLogRef.current = key;
+      window.electronAPI.log(`[PLaMo Local] ${msg}`);
+    }
+  }, []);
+
+  const preloadPlamoIfNeeded = React.useCallback(
+    (provider?: string, model?: string) => {
+      if (provider !== 'plamo-local') {
+        setPlamoStatus('idle');
+        return;
+      }
+      const modelLabel = model || 'plamo-3-translate-0.8b';
+      setPlamoStatus('loading');
+      window.electronAPI.log(`[PLaMo Local] Preloading model: ${modelLabel}`);
+      PlamoLocalService.getInstance()
+        .ensureLoaded(model, logPlamoProgress)
+        .then(() => {
+          const readyMsg = `[PLaMo Local] Ready (${modelLabel})`;
+          setPlamoStatus('ready');
+          addSystemLog(readyMsg);
+          window.electronAPI.log(readyMsg);
+          setStatusText('Ready');
+        })
+        .catch((e) => {
+          const errMsg = `[PLaMo Local] Init error: ${e instanceof Error ? e.message : String(e)}`;
+          setPlamoStatus('error');
+          addSystemLog(errMsg);
+          window.electronAPI.log(errMsg);
+          setStatusText('PLaMo Local Init Error');
+        });
+    },
+    [addSystemLog, logPlamoProgress],
+  );
+
   // --- Effects ---
 
   useEffect(() => {
@@ -69,18 +111,18 @@ const App: React.FC = () => {
           chat_template_kwargs: payload.chat_template_kwargs,
           fallbackPrompt: payload.fallbackPrompt,
           temperature: payload.temperature,
-          onProgress: (msg) => {
-            setStatusText(msg);
-          },
+          onProgress: logPlamoProgress,
         });
         window.electronAPI.sendPlamoTranslateResult({
           requestId: payload.requestId,
           text: rawText,
         });
       } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        window.electronAPI.log(`[PLaMo Local] Inference error (${payload.requestId}): ${errMsg}`);
         window.electronAPI.sendPlamoTranslateResult({
           requestId: payload.requestId,
-          error: err instanceof Error ? err.message : String(err),
+          error: errMsg,
         });
       }
     });
@@ -90,23 +132,12 @@ const App: React.FC = () => {
       .loadConfig()
       .then((cfg) => {
         setLlmProvider(cfg?.llm?.provider || '');
-        if (cfg?.llm?.provider === 'plamo-local') {
-          PlamoLocalService.getInstance()
-            .ensureLoaded(cfg.llm.model, (msg) => setStatusText(msg))
-            .then(() => {
-              addSystemLog(`[PLaMo Local] Ready (${cfg.llm?.model || '0.8b'})`);
-            })
-            .catch((e) => {
-              addSystemLog(
-                `[PLaMo Local] Init error: ${e instanceof Error ? e.message : String(e)}`,
-              );
-            });
-        }
+        preloadPlamoIfNeeded(cfg?.llm?.provider, cfg?.llm?.model);
       })
       .catch(() => {
         /* ignore */
       });
-  }, [addSystemLog]);
+  }, [addSystemLog, logPlamoProgress, preloadPlamoIfNeeded]);
   useEffect(() => {
     if (volumeRef.current) {
       volumeRef.current.style.width = `${Math.min(100, volume * 500)}%`;
@@ -169,6 +200,7 @@ const App: React.FC = () => {
     try {
       const cfg = await window.electronAPI.loadConfig();
       setLlmProvider(cfg?.llm?.provider || '');
+      preloadPlamoIfNeeded(cfg?.llm?.provider, cfg?.llm?.model);
     } catch {
       /* ignore */
     }
@@ -206,6 +238,25 @@ const App: React.FC = () => {
           >
             {overlayStatus?.success ? 'Overlay Ready' : 'Overlay Offline'}
           </span>
+          {llmProvider === 'plamo-local' && (
+            <span
+              className={cn(
+                'badge badge-outline',
+                plamoStatus === 'ready'
+                  ? 'badge-success'
+                  : plamoStatus === 'error'
+                    ? 'badge-error'
+                    : 'badge-warning',
+              )}
+              title={statusText}
+            >
+              {plamoStatus === 'ready'
+                ? 'PLaMo Ready'
+                : plamoStatus === 'error'
+                  ? 'PLaMo Error'
+                  : 'PLaMo Loading...'}
+            </span>
+          )}
         </div>
         <button className="btn btn-sm btn-ghost" onClick={() => setShowSettings(true)}>
           ⚙️ Settings
