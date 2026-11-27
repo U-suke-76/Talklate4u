@@ -12,6 +12,7 @@ const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [statusText, setStatusText] = useState('Initializing...');
   const [llmProvider, setLlmProvider] = useState<string>('');
+  const [fallbackToPlamoLocal, setFallbackToPlamoLocal] = useState(false);
   const [plamoStatus, setPlamoStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
@@ -60,18 +61,23 @@ const App: React.FC = () => {
   }, []);
 
   const preloadPlamoIfNeeded = React.useCallback(
-    (provider?: string, model?: string) => {
-      if (provider !== 'plamo-local') {
+    (provider?: string, model?: string, fallbackEnabled?: boolean) => {
+      const shouldPreload =
+        provider === 'plamo-local' || (provider === 'groq' && Boolean(fallbackEnabled));
+      if (!shouldPreload) {
         setPlamoStatus('idle');
         return;
       }
-      const modelLabel = model || 'plamo-3-translate-0.8b';
+      const targetModel = provider === 'plamo-local' ? model : 'plamo-3-translate-0.8b';
+      const modelLabel = targetModel || 'plamo-3-translate-0.8b';
       setPlamoStatus('loading');
-      window.electronAPI.log(`[PLaMo Local] Preloading model: ${modelLabel}`);
+      window.electronAPI.log(
+        `[PLaMo Local] Preloading model: ${modelLabel}${provider === 'groq' ? ' (Fallback Standby)' : ''}`,
+      );
       PlamoLocalService.getInstance()
-        .ensureLoaded(model, logPlamoProgress)
+        .ensureLoaded(targetModel, logPlamoProgress)
         .then(() => {
-          const readyMsg = `[PLaMo Local] Ready (${modelLabel})`;
+          const readyMsg = `[PLaMo Local] Ready (${modelLabel}${provider === 'groq' ? ' / Fallback Standby' : ''})`;
           setPlamoStatus('ready');
           addSystemLog(readyMsg);
           window.electronAPI.log(readyMsg);
@@ -131,8 +137,11 @@ const App: React.FC = () => {
     window.electronAPI
       .loadConfig()
       .then((cfg) => {
-        setLlmProvider(cfg?.llm?.provider || '');
-        preloadPlamoIfNeeded(cfg?.llm?.provider, cfg?.llm?.model);
+        const provider = cfg?.llm?.provider || '';
+        const fallback = Boolean(cfg?.llm?.fallbackToPlamoLocal);
+        setLlmProvider(provider);
+        setFallbackToPlamoLocal(fallback);
+        preloadPlamoIfNeeded(provider, cfg?.llm?.model, fallback);
       })
       .catch(() => {
         /* ignore */
@@ -199,8 +208,11 @@ const App: React.FC = () => {
   const handleSettingsSaved = async () => {
     try {
       const cfg = await window.electronAPI.loadConfig();
-      setLlmProvider(cfg?.llm?.provider || '');
-      preloadPlamoIfNeeded(cfg?.llm?.provider, cfg?.llm?.model);
+      const provider = cfg?.llm?.provider || '';
+      const fallback = Boolean(cfg?.llm?.fallbackToPlamoLocal);
+      setLlmProvider(provider);
+      setFallbackToPlamoLocal(fallback);
+      preloadPlamoIfNeeded(provider, cfg?.llm?.model, fallback);
     } catch {
       /* ignore */
     }
@@ -238,7 +250,7 @@ const App: React.FC = () => {
           >
             {overlayStatus?.success ? 'Overlay Ready' : 'Overlay Offline'}
           </span>
-          {llmProvider === 'plamo-local' && (
+          {(llmProvider === 'plamo-local' || (llmProvider === 'groq' && fallbackToPlamoLocal)) && (
             <span
               className={cn(
                 'badge badge-outline',
@@ -251,7 +263,9 @@ const App: React.FC = () => {
               title={statusText}
             >
               {plamoStatus === 'ready'
-                ? 'PLaMo Ready'
+                ? llmProvider === 'groq'
+                  ? 'PLaMo Standby'
+                  : 'PLaMo Ready'
                 : plamoStatus === 'error'
                   ? 'PLaMo Error'
                   : 'PLaMo Loading...'}

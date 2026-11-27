@@ -51,6 +51,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           apiKey: rawConfig.groq.apiKey || '',
           model: rawConfig.groq.model || 'auto',
           groqModels: [],
+          fallbackToPlamoLocal: false,
         };
       }
 

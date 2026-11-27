@@ -192,6 +192,41 @@ export const LlmSettingsTab: React.FC<LlmSettingsTabProps> = ({
         />
       )}
 
+      {/* Fallback to PLaMo Local (Groq only) */}
+      {config.llm.provider === 'groq' && (
+        <>
+          <label className="font-bold text-gray-300" htmlFor="llm-fallback-plamo">
+            Auto Fallback
+          </label>
+          <div className="flex flex-col gap-1">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                id="llm-fallback-plamo"
+                type="checkbox"
+                className="toggle toggle-primary toggle-sm"
+                checked={Boolean(config.llm.fallbackToPlamoLocal)}
+                onChange={(e) =>
+                  onChange({
+                    ...config,
+                    llm: {
+                      ...config.llm,
+                      fallbackToPlamoLocal: e.target.checked,
+                    },
+                  })
+                }
+              />
+              <span className="text-sm text-gray-300">
+                Groq のトークン制限 (429) 時に PLaMo 0.8B (Local) で続行する
+              </span>
+            </label>
+            <p className="text-xs text-gray-400">
+              有効にすると、Groq がレート制限に達した際にローカルの PLaMo 3 Translate 0.8B
+              へ自動で切り替えて翻訳を継続します（一定時間後に Groq への復帰を再試行します）。
+            </p>
+          </div>
+        </>
+      )}
+
       {/* Streaming Display */}
       <label className="font-bold text-gray-300" htmlFor="llm-streaming-display">
         Streaming Display

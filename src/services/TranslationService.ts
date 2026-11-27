@@ -28,9 +28,14 @@ export class TranslationService {
   private history: ConversationTurn[] = [];
   private packMatcher: GlossaryPackMatcher | null = null;
   private packMatcherKey = '';
+  private groqCooldownUntil = 0;
+  private groqConsecutive429Count = 0;
   private readonly MAX_HISTORY_TURNS = 6;
   private readonly HISTORY_TTL_MS = 2 * 60 * 1000; // 2 minutes context window
   private readonly STREAM_THROTTLE_MS = 50;
+  private readonly GROQ_FALLBACK_COOLDOWN_MS = 60 * 1000;
+  private readonly MAX_GROQ_RECOVERY_RETRIES = 3;
+  private readonly FALLBACK_PLAMO_MODEL = 'plamo-3-translate-0.8b';
 
   // Combined patterns from main.ts
   private readonly NOISE_PATTERNS = [
@@ -120,6 +125,8 @@ export class TranslationService {
   public resetClient() {
     this.openaiClient = null;
     this.history = [];
+    this.groqCooldownUntil = 0;
+    this.groqConsecutive429Count = 0;
   }
 
   private getActiveHistory(): ConversationTurn[] {
@@ -299,6 +306,102 @@ export class TranslationService {
     return this.resolveCombinedGlossary(sourceLang, targetLangCode, text, true);
   }
 
+  private async translateWithLocalPlamo(
+    text: string,
+    detectedLanguage: string | undefined,
+    subtitleId: string,
+    modelId: string,
+    isFallback = false,
+  ): Promise<{ text?: string | null; error?: string }> {
+    if (!this.localTranslator) {
+      this.overlayServer.broadcast('translation_remove', { id: subtitleId });
+      return { text: null, error: 'PLaMo Local Translator not initialized' };
+    }
+
+    try {
+      const config = ConfigManager.getInstance().getConfig();
+      const start = Date.now();
+      const configuredTarget = config.translation?.targetLang || 'auto';
+      const { targetLang } = PromptFactory.getPrompt(configuredTarget, detectedLanguage);
+      const systemPrompt = this.getSystemPrompt(detectedLanguage, text);
+      const recentHistory = this.getActiveHistory();
+      const matchedGlossary = this.getPlamoGlossary(text, detectedLanguage);
+      const adapter = resolveModelAdapter(modelId, 'plamo-local');
+      const adapterRequest = adapter.buildRequest({
+        text,
+        sourceLang: detectedLanguage,
+        targetLangName: targetLang,
+        systemPrompt,
+        history: recentHistory,
+        glossary: matchedGlossary,
+      });
+
+      console.log(
+        `[TranslationService] Provider="${isFallback ? 'plamo-local(fallback)' : 'plamo-local'}" Adapter="${adapter.family}" Model="${modelId}" (lang="${detectedLanguage}" -> "${targetLang}", ctx:${recentHistory.length}, gls:${matchedGlossary.length})`,
+      );
+
+      const maxGenRetries = 3;
+      let cleanText = '';
+      let duration = 0;
+
+      for (let genAttempt = 1; genAttempt <= maxGenRetries; genAttempt++) {
+        const currentTemperature = Number((0.2 + (genAttempt - 1) * 0.1).toFixed(1));
+        const result = await this.localTranslator({
+          model: modelId,
+          messages: adapterRequest.messages,
+          stop: adapterRequest.stop,
+          chat_template_kwargs: adapterRequest.chat_template_kwargs,
+          fallbackPrompt: adapterRequest.fallbackPrompt,
+          temperature: currentTemperature,
+        });
+        duration = Date.now() - start;
+
+        console.debug(`[TranslationService] LLM response (raw):`, result);
+
+        cleanText = adapter.cleanOutput(result, text);
+
+        const strippedInput = text.replace(/[\s.?!,;:。、．！？・ー～〜…]+/gu, '');
+        if (!cleanText && adapter.family === 'plamo' && strippedInput.length <= 2) {
+          break;
+        }
+
+        if (cleanText) {
+          break;
+        } else {
+          console.warn(
+            `[TranslationService] Attempt ${genAttempt} failed: Text became empty after filtering. Retrying...`,
+          );
+          if (genAttempt === maxGenRetries) {
+            throw new Error('Could not obtain a valid result after tag removal.');
+          }
+        }
+      }
+
+      console.log(
+        `[TRANS][${isFallback ? 'plamo-local(fallback)' : 'plamo-local'}/${adapter.family}] [${duration}ms] ${text} -> ${cleanText}`,
+      );
+
+      if (cleanText) {
+        this.pushHistory(text, cleanText);
+        this.overlayServer.broadcast('translation', {
+          id: subtitleId,
+          original: text,
+          translation: cleanText,
+          pending: false,
+        });
+      } else {
+        this.overlayServer.broadcast('translation_remove', { id: subtitleId });
+      }
+
+      return { text: cleanText };
+    } catch (err: unknown) {
+      console.error(`[LLM Error] (Model: ${modelId})`, err);
+      const errorObj = err as { message?: string };
+      this.overlayServer.broadcast('translation_remove', { id: subtitleId });
+      return { text: null, error: errorObj.message || String(err) };
+    }
+  }
+
   public async translate(
     text: string,
     detectedLanguage?: string,
@@ -324,6 +427,24 @@ export class TranslationService {
     const isLocalPlamo = config.llm.provider === 'plamo-local';
     const isGroq = config.llm.provider === 'groq';
     const isAuto = currentModel === 'auto' && isGroq;
+    const canFallbackToPlamo =
+      isGroq && Boolean(config.llm.fallbackToPlamoLocal) && Boolean(this.localTranslator);
+
+    if (isLocalPlamo) {
+      const localModel =
+        currentModel === 'plamo-3-translate-2b' ? 'plamo-3-translate-2b' : 'plamo-3-translate-0.8b';
+      return this.translateWithLocalPlamo(text, detectedLanguage, subtitleId, localModel, false);
+    }
+
+    if (canFallbackToPlamo && Date.now() < this.groqCooldownUntil) {
+      return this.translateWithLocalPlamo(
+        text,
+        detectedLanguage,
+        subtitleId,
+        this.FALLBACK_PLAMO_MODEL,
+        true,
+      );
+    }
 
     let availableModels: string[] = [];
     if (isAuto) {
@@ -515,6 +636,14 @@ export class TranslationService {
           `[TRANS][${config.llm.provider}/${adapter.family}] [${duration}ms] ${text} -> ${cleanText}`,
         );
 
+        if (isGroq && (this.groqCooldownUntil > 0 || this.groqConsecutive429Count > 0)) {
+          this.groqCooldownUntil = 0;
+          this.groqConsecutive429Count = 0;
+          const recoverMsg = '[Fallback] Groq recovered. Resuming Groq translation.';
+          console.log(`[TranslationService] ${recoverMsg}`);
+          this.onLog(recoverMsg);
+        }
+
         // Stage 2 Overlay Broadcast & History Update
         if (cleanText) {
           this.pushHistory(text, cleanText);
@@ -547,6 +676,30 @@ export class TranslationService {
 
             this.currentModelIndex++; // Move to next model
             continue; // Retry loop
+          }
+          if (canFallbackToPlamo) {
+            this.groqConsecutive429Count++;
+            if (this.groqConsecutive429Count >= this.MAX_GROQ_RECOVERY_RETRIES) {
+              this.groqCooldownUntil = Number.POSITIVE_INFINITY;
+              const msg = `[Fallback] Groq Rate Limit (429) reached ${this.MAX_GROQ_RECOVERY_RETRIES} times. Staying on PLaMo 3 Translate 0.8B (Local) for this session.`;
+              console.warn(`[TranslationService] ${msg}`);
+              this.onLog(msg);
+            } else {
+              const cooldownMs =
+                this.GROQ_FALLBACK_COOLDOWN_MS * Math.pow(2, this.groqConsecutive429Count - 1);
+              this.groqCooldownUntil = Date.now() + cooldownMs;
+              const cooldownSec = Math.round(cooldownMs / 1000);
+              const msg = `[Fallback] Groq Rate Limit (429). Continuing with PLaMo 3 Translate 0.8B (Local) for ${cooldownSec}s (attempt ${this.groqConsecutive429Count}/${this.MAX_GROQ_RECOVERY_RETRIES}).`;
+              console.warn(`[TranslationService] ${msg}`);
+              this.onLog(msg);
+            }
+            return this.translateWithLocalPlamo(
+              text,
+              detectedLanguage,
+              subtitleId,
+              this.FALLBACK_PLAMO_MODEL,
+              true,
+            );
           }
           this.overlayServer.broadcast('translation_remove', { id: subtitleId });
           return { text: null, error: 'Rate Limit Exceeded. Please wait.' };

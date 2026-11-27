@@ -131,6 +131,7 @@ export const AppConfigSchema = z.object({
     apiKey: z.string(),
     model: z.string(),
     groqModels: z.array(z.string()).optional(),
+    fallbackToPlamoLocal: z.boolean().optional().default(false),
   }),
   translation: z.object({
     targetLang: z.string(),
@@ -177,7 +178,13 @@ export const DEFAULT_CONFIG: AppConfig = {
     apiKey: '',
     baseUrl: '',
   },
-  llm: { provider: 'groq', apiKey: '', model: 'auto', groqModels: [] },
+  llm: {
+    provider: 'groq',
+    apiKey: '',
+    model: 'auto',
+    groqModels: [],
+    fallbackToPlamoLocal: false,
+  },
   translation: { targetLang: 'auto', streamingDisplay: false },
   app: { defaultMicName: '' },
   vad: {
