@@ -30,6 +30,7 @@ export class TranslationService {
   private packMatcherKey = '';
   private readonly MAX_HISTORY_TURNS = 6;
   private readonly HISTORY_TTL_MS = 2 * 60 * 1000; // 2 minutes context window
+  private readonly STREAM_THROTTLE_MS = 50;
 
   // Combined patterns from main.ts
   private readonly NOISE_PATTERNS = [
@@ -423,37 +424,69 @@ export class TranslationService {
               return { text: null, error: 'Client Init Failed' };
             }
 
-            const requestBody: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
-              chat_template_kwargs?: Record<string, unknown>;
-            } = {
+            const baseRequestBody: Record<string, unknown> = {
               messages: adapterRequest.messages,
               model: modelToUse,
               temperature: currentTemperature,
+              ...(adapterRequest.extraBody || {}),
             };
 
             if (adapterRequest.stop && adapterRequest.stop.length > 0) {
-              requestBody.stop = adapterRequest.stop;
+              baseRequestBody.stop = adapterRequest.stop;
             }
             if (adapterRequest.chat_template_kwargs) {
-              requestBody.chat_template_kwargs = adapterRequest.chat_template_kwargs;
+              baseRequestBody.chat_template_kwargs = adapterRequest.chat_template_kwargs;
             }
 
-            const completion = await client.chat.completions.create(requestBody);
-            duration = Date.now() - start;
+            if (config.translation?.streamingDisplay) {
+              const stream = await client.chat.completions.create({
+                ...(baseRequestBody as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming),
+                stream: true,
+              });
 
-            const choiceMsg = completion.choices[0]?.message as
-              | {
-                  content?: string | null;
-                  reasoning?: string | null;
-                  reasoning_content?: string | null;
+              let lastBroadcastAt = 0;
+              let lastBroadcastText = '';
+              for await (const chunk of stream) {
+                const delta = chunk.choices[0]?.delta?.content;
+                if (!delta) continue;
+                result += delta;
+
+                const now = Date.now();
+                if (now - lastBroadcastAt >= this.STREAM_THROTTLE_MS) {
+                  const partial = adapter.cleanPartialOutput(result);
+                  if (partial && partial !== lastBroadcastText) {
+                    this.overlayServer.broadcast('translation', {
+                      id: subtitleId,
+                      original: text,
+                      translation: partial,
+                      pending: true,
+                    });
+                    lastBroadcastText = partial;
+                    lastBroadcastAt = now;
+                  }
                 }
-              | undefined;
-            result = choiceMsg?.content || '';
+              }
+              duration = Date.now() - start;
+            } else {
+              const completion = await client.chat.completions.create(
+                baseRequestBody as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+              );
+              duration = Date.now() - start;
 
-            console.debug(
-              `[TranslationService] LLM response (JSON):`,
-              JSON.stringify(completion, null, 2),
-            );
+              const choiceMsg = completion.choices[0]?.message as
+                | {
+                    content?: string | null;
+                    reasoning?: string | null;
+                    reasoning_content?: string | null;
+                  }
+                | undefined;
+              result = choiceMsg?.content || '';
+
+              console.debug(
+                `[TranslationService] LLM response (JSON):`,
+                JSON.stringify(completion, null, 2),
+              );
+            }
           }
 
           console.debug(`[TranslationService] LLM response (raw):`, result);

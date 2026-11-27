@@ -134,6 +134,7 @@ export const AppConfigSchema = z.object({
   }),
   translation: z.object({
     targetLang: z.string(),
+    streamingDisplay: z.boolean().optional().default(false),
   }),
   vad: z.object({
     silenceDurationMs: z.number(),
@@ -177,7 +178,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     baseUrl: '',
   },
   llm: { provider: 'groq', apiKey: '', model: 'auto', groqModels: [] },
-  translation: { targetLang: 'auto' },
+  translation: { targetLang: 'auto', streamingDisplay: false },
   app: { defaultMicName: '' },
   vad: {
     silenceDurationMs: 500,

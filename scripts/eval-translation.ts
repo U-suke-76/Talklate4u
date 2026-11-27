@@ -455,10 +455,12 @@ async function main(): Promise<void> {
     try {
       const requestBody: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
         chat_template_kwargs?: Record<string, unknown>;
+        [key: string]: unknown;
       } = {
         model,
         messages: adapterRequest.messages,
         temperature,
+        ...(adapterRequest.extraBody || {}),
       };
       if (adapterRequest.stop && adapterRequest.stop.length > 0) {
         requestBody.stop = adapterRequest.stop;

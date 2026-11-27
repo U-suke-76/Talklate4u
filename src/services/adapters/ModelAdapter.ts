@@ -31,6 +31,7 @@ export interface AdapterRequestPayload {
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
   stop?: string[];
   chat_template_kwargs?: Record<string, unknown>;
+  extraBody?: Record<string, unknown>;
   fallbackPrompt?: string;
 }
 
@@ -38,6 +39,17 @@ export interface IModelAdapter {
   readonly family: 'plamo' | 'qwen' | 'gemma' | 'gpt-oss' | 'standard';
   buildRequest(input: AdapterInput): AdapterRequestPayload;
   cleanOutput(rawContent: string, inputText: string): string;
+  cleanPartialOutput(rawContent: string): string;
+}
+
+/**
+ * Strips `<think>...</think>` blocks, unclosed `<think>...` tails, and trailing
+ * incomplete `<think` tag prefixes during streaming.
+ */
+function stripPartialThinkTags(rawContent: string): string {
+  let cleaned = rawContent.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '');
+  cleaned = cleaned.replace(/<(?:t(?:h(?:i(?:n(?:k)?)?)?)?)?$/i, '');
+  return cleaned.trim();
 }
 
 function buildMultiTurnMessages(
@@ -132,28 +144,52 @@ export class PlamoAdapter implements IModelAdapter {
     }
     return cleaned;
   }
+
+  public cleanPartialOutput(rawContent: string): string {
+    let cleaned = cleanPlamoOutput(rawContent);
+    const specialIdx = cleaned.indexOf('<|');
+    if (specialIdx !== -1) {
+      cleaned = cleaned.slice(0, specialIdx);
+    }
+    return cleaned.replace(/<$/, '').trim();
+  }
 }
 
 /**
  * 2. Qwen Adapter (Qwen 2.5 / Qwen 3)
- * Suppresses thinking mode via `/no_think` directive and strips residual `<think>` blocks.
- * Note: Does NOT send `chat_template_kwargs` because cloud APIs like Groq reject unknown top-level properties with HTTP 400.
+ * Suppresses thinking mode via `/no_think` directive, API-level options
+ * (`reasoning_effort: 'none'` on Groq, `chat_template_kwargs: { enable_thinking: false }`
+ * on OpenAI-compatible servers), and strips residual `<think>` blocks.
  */
 export class QwenAdapter implements IModelAdapter {
   public readonly family = 'qwen' as const;
+
+  public constructor(private readonly provider: 'groq' | 'openai' = 'openai') {}
 
   public buildRequest(input: AdapterInput): AdapterRequestPayload {
     const noThinkSystemPrompt = input.systemPrompt.startsWith('/no_think')
       ? input.systemPrompt
       : `/no_think\n${input.systemPrompt}`;
 
-    return {
+    const payload: AdapterRequestPayload = {
       messages: buildMultiTurnMessages(noThinkSystemPrompt, input.history, input.text),
     };
+
+    if (this.provider === 'groq') {
+      payload.extraBody = { reasoning_effort: 'none' };
+    } else {
+      payload.chat_template_kwargs = { enable_thinking: false };
+    }
+
+    return payload;
   }
 
   public cleanOutput(rawContent: string): string {
     return rawContent.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim();
+  }
+
+  public cleanPartialOutput(rawContent: string): string {
+    return stripPartialThinkTags(rawContent);
   }
 }
 
@@ -205,20 +241,34 @@ export class GemmaAdapter implements IModelAdapter {
     cleaned = cleaned.replace(/^(?:Japanese|English|Korean|Translation)\s*:\s*/i, '').trim();
     return cleaned;
   }
+
+  public cleanPartialOutput(rawContent: string): string {
+    const cleaned = stripPartialThinkTags(rawContent);
+    return cleaned.replace(/^(?:Japanese|English|Korean|Translation)\s*:\s*/i, '').trim();
+  }
 }
 
 /**
  * 4. GPT-OSS Adapter (openai/gpt-oss-120b, openai/gpt-oss-20b, etc.)
- * Prevents Harmony special token (`<|...|>` ) leakage via stop sequence.
+ * Prevents Harmony special token (`<|...|>` ) leakage via stop sequence, and uses
+ * `reasoning_effort: 'low'` on Groq to minimize internal reasoning latency.
  */
 export class GptOssAdapter implements IModelAdapter {
   public readonly family = 'gpt-oss' as const;
 
+  public constructor(private readonly provider: 'groq' | 'openai' = 'openai') {}
+
   public buildRequest(input: AdapterInput): AdapterRequestPayload {
-    return {
+    const payload: AdapterRequestPayload = {
       messages: buildMultiTurnMessages(input.systemPrompt, input.history, input.text),
       stop: ['<|'],
     };
+
+    if (this.provider === 'groq') {
+      payload.extraBody = { reasoning_effort: 'low' };
+    }
+
+    return payload;
   }
 
   public cleanOutput(rawContent: string): string {
@@ -228,6 +278,10 @@ export class GptOssAdapter implements IModelAdapter {
       cleaned = cleaned.slice(0, tagIdx);
     }
     return cleaned.trim();
+  }
+
+  public cleanPartialOutput(rawContent: string): string {
+    return this.cleanOutput(rawContent).replace(/<$/, '').trim();
   }
 }
 
@@ -247,13 +301,19 @@ export class StandardChatAdapter implements IModelAdapter {
   public cleanOutput(rawContent: string): string {
     return rawContent.trim();
   }
+
+  public cleanPartialOutput(rawContent: string): string {
+    return rawContent.trim();
+  }
 }
 
 const plamoLocalAdapter = new PlamoAdapter('local');
 const plamoRemoteAdapter = new PlamoAdapter('remote');
-const qwenAdapter = new QwenAdapter();
+const qwenGroqAdapter = new QwenAdapter('groq');
+const qwenOpenAiAdapter = new QwenAdapter('openai');
 const gemmaAdapter = new GemmaAdapter();
-const gptOssAdapter = new GptOssAdapter();
+const gptOssGroqAdapter = new GptOssAdapter('groq');
+const gptOssOpenAiAdapter = new GptOssAdapter('openai');
 const standardAdapter = new StandardChatAdapter();
 
 export function resolveModelAdapter(modelName?: string, provider?: string): IModelAdapter {
@@ -266,13 +326,13 @@ export function resolveModelAdapter(modelName?: string, provider?: string): IMod
     return plamoRemoteAdapter;
   }
   if (lower.includes('qwen')) {
-    return qwenAdapter;
+    return provider === 'groq' ? qwenGroqAdapter : qwenOpenAiAdapter;
   }
   if (lower.includes('gemma')) {
     return gemmaAdapter;
   }
   if (lower.includes('gpt-oss')) {
-    return gptOssAdapter;
+    return provider === 'groq' ? gptOssGroqAdapter : gptOssOpenAiAdapter;
   }
   return standardAdapter;
 }

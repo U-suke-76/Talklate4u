@@ -191,6 +191,37 @@ export const LlmSettingsTab: React.FC<LlmSettingsTabProps> = ({
           }
         />
       )}
+
+      {/* Streaming Display */}
+      <label className="font-bold text-gray-300" htmlFor="llm-streaming-display">
+        Streaming Display
+      </label>
+      <div className="flex flex-col gap-1">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            id="llm-streaming-display"
+            type="checkbox"
+            className="toggle toggle-primary toggle-sm"
+            checked={Boolean(config.translation?.streamingDisplay)}
+            onChange={(e) =>
+              onChange({
+                ...config,
+                translation: {
+                  ...config.translation,
+                  streamingDisplay: e.target.checked,
+                },
+              })
+            }
+          />
+          <span className="text-sm text-gray-300">
+            翻訳テキストをリアルタイムに逐次表示する（Groq / OpenAI 互換）
+          </span>
+        </label>
+        <p className="text-xs text-gray-400">
+          有効にすると LLM の生成に合わせてオーバーレイ字幕が 1 文字ずつ流れます（ローカル WebGPU
+          は一括表示のまま動作します）。
+        </p>
+      </div>
     </div>
   );
 };

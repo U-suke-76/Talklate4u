@@ -53,16 +53,39 @@ describe('ModelAdapter', () => {
       expect(adapter.cleanOutput('これは異常に長すぎるハルシネーション出力です。', 'あ')).toBe('');
       expect(adapter.cleanOutput('こんにちは', '안녕')).toBe('こんにちは');
     });
+
+    it('cleanPartialOutput は過大出力ガードを適用せず特殊トークンの書きかけを隠す', () => {
+      const adapter = new PlamoAdapter('remote');
+      expect(adapter.cleanPartialOutput('こんにちは<|plamo:tag')).toBe('こんにちは');
+      expect(adapter.cleanPartialOutput('こんにちは<')).toBe('こんにちは');
+    });
   });
 
   describe('QwenAdapter', () => {
-    it('/no_think をシステムプロンプト先頭に付与し、<think> ブロックを除去する', () => {
-      const adapter = new QwenAdapter();
+    it('Groq では reasoning_effort: none を付与し、chat_template_kwargs は送らない', () => {
+      const adapter = new QwenAdapter('groq');
       const payload = adapter.buildRequest(baseInput);
       expect(payload.messages[0].content.startsWith('/no_think\n')).toBe(true);
       expect(payload.chat_template_kwargs).toBeUndefined();
+      expect(payload.extraBody).toEqual({ reasoning_effort: 'none' });
+    });
+
+    it('OpenAI 互換では chat_template_kwargs.enable_thinking: false を付与する', () => {
+      const adapter = new QwenAdapter('openai');
+      const payload = adapter.buildRequest(baseInput);
+      expect(payload.messages[0].content.startsWith('/no_think\n')).toBe(true);
+      expect(payload.chat_template_kwargs).toEqual({ enable_thinking: false });
+      expect(payload.extraBody).toBeUndefined();
+    });
+
+    it('<think> ブロックおよびストリーミング途中のタグ書きかけを除去する', () => {
+      const adapter = new QwenAdapter('groq');
       expect(adapter.cleanOutput('<think>思考中</think>こんにちは')).toBe('こんにちは');
       expect(adapter.cleanOutput('<think>未閉じの思考')).toBe('');
+      expect(adapter.cleanPartialOutput('<thi')).toBe('');
+      expect(adapter.cleanPartialOutput('<think>思考中')).toBe('');
+      expect(adapter.cleanPartialOutput('<think>思考中</think>こんに')).toBe('こんに');
+      expect(adapter.cleanPartialOutput('こんにちは<th')).toBe('こんにちは');
     });
   });
 
@@ -74,15 +97,28 @@ describe('ModelAdapter', () => {
       expect(payload.messages[0].role).toBe('user');
       expect(payload.messages[0].content).toContain('GLOSSARY');
       expect(adapter.cleanOutput('<think>hmm</think>Japanese: こんにちは')).toBe('こんにちは');
+      expect(adapter.cleanPartialOutput('<think>hmm')).toBe('');
+      expect(adapter.cleanPartialOutput('<think>hmm</think>Japanese: こんに')).toBe('こんに');
     });
   });
 
   describe('GptOssAdapter', () => {
-    it('Harmony 特殊トークン <| 以降を切断する', () => {
-      const adapter = new GptOssAdapter();
-      const payload = adapter.buildRequest(baseInput);
-      expect(payload.stop).toEqual(['<|']);
+    it('Groq では reasoning_effort: low を付与し、OpenAI 互換では付与しない', () => {
+      const groqAdapter = new GptOssAdapter('groq');
+      const groqPayload = groqAdapter.buildRequest(baseInput);
+      expect(groqPayload.stop).toEqual(['<|']);
+      expect(groqPayload.extraBody).toEqual({ reasoning_effort: 'low' });
+
+      const openaiAdapter = new GptOssAdapter('openai');
+      const openaiPayload = openaiAdapter.buildRequest(baseInput);
+      expect(openaiPayload.extraBody).toBeUndefined();
+    });
+
+    it('Harmony 特殊トークン <| 以降および末尾の孤立 < を切断する', () => {
+      const adapter = new GptOssAdapter('groq');
       expect(adapter.cleanOutput('こんにちは<|end|>extra')).toBe('こんにちは');
+      expect(adapter.cleanPartialOutput('こんにちは<|end')).toBe('こんにちは');
+      expect(adapter.cleanPartialOutput('こんにちは<')).toBe('こんにちは');
     });
   });
 
