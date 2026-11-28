@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- chore: Updated `nodejs-whisper` to `0.4.1` to address GHSA-2f48-3555-fpx6 (`package.json`, `package-lock.json`).
 - chore: Updated transitive and runtime dependencies via `npm audit fix` (`electron`, `body-parser`, `follow-redirects`, `undici`, `zod`, `fast-uri`, `qs`), reducing reported vulnerabilities from 74 to 39.
 
 ### Fixed
