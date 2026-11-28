@@ -157,6 +157,41 @@ export const WhisperSettingsTab: React.FC<WhisperSettingsTabProps> = ({
       </select>
     )}
 
+    {/* Groq Rate Limit Fallback */}
+    {config.whisper.provider === 'groq' && (
+      <>
+        <label className="font-bold text-gray-300" htmlFor="whisper-fallback-sensevoice">
+          Rate Limit Fallback
+        </label>
+        <div className="flex flex-col gap-1">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              id="whisper-fallback-sensevoice"
+              type="checkbox"
+              className="toggle toggle-primary toggle-sm"
+              checked={Boolean(config.whisper.fallbackToSenseVoice)}
+              onChange={(e) =>
+                onChange({
+                  ...config,
+                  whisper: {
+                    ...config.whisper,
+                    fallbackToSenseVoice: e.target.checked,
+                  },
+                })
+              }
+            />
+            <span className="text-sm text-gray-300">
+              Groq のレート制限 (429) 時に SenseVoice-Small (Local) で続行する
+            </span>
+          </label>
+          <p className="text-xs text-gray-400">
+            有効にすると、Groq Whisper がレート制限に達した際にローカルの SenseVoice-Small
+            へ自動で切り替えて音声認識を継続します（一定時間後に Groq への復帰を再試行します）。
+          </p>
+        </div>
+      </>
+    )}
+
     {/* Local Only Settings */}
     {(!config.whisper.provider || config.whisper.provider === 'local') && (
       <>

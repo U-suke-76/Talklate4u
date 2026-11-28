@@ -30,9 +30,7 @@ export function useSpeechTranslation(
 
   useEffect(() => {
     window.electronAPI?.onTranslationPartial?.(({ logId, text }) => {
-      setLogs((prev) =>
-        prev.map((log) => (log.id === logId ? { ...log, translated: text } : log)),
-      );
+      setLogs((prev) => prev.map((log) => (log.id === logId ? { ...log, translated: text } : log)));
       scrollToBottom();
     });
   }, [scrollToBottom]);

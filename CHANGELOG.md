@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- feat: Added automatic fallback from Groq Whisper to local SenseVoice-Small (`whisper.fallbackToSenseVoice`) on rate limits (429), with background preloading, exponential backoff cooldown (60s -> 120s), and session-long lock after 3 consecutive 429s (`AsrService.ts`, `WhisperManager.ts`, `config.ts`, `WhisperSettingsTab.tsx`, `tests/unit/AsrServiceFallback.test.ts`).
 - feat: Extended streaming translation display (`translation.streamingDisplay`) to local WebGPU `plamo-local` (including Groq 429 fallback) via `@wllama/wllama` `stream: true` + `onData` and `plamo-translate-chunk` IPC, and added live partial translation streaming to the main window `LogViewer` via `translation-partial` IPC (`WllamaEngine.ts`, `main.ts`, `preload.ts`, `electron.d.ts`, `App.tsx`, `useSpeechTranslation.ts`, `TranslationService.ts`, `LlmSettingsTab.tsx`, `tests/unit/WllamaEngine.test.ts`).
 - fix: Destroy `MicVAD` instance on `stopVAD()` (`src/hooks/useVAD.ts`) instead of only pausing, preventing microphone `MediaStream` / `AudioContext` leaks when restarting VAD after saving settings.
 - feat: Added automatic fallback to local PLaMo 3 Translate 0.8B (`llm.fallbackToPlamoLocal`) when Groq hits rate limits (429), with startup preloading (`PLaMo Standby`), exponential backoff cooldown (60s -> 120s), and session-long lock to PLaMo after 3 consecutive 429s (`TranslationService.ts`, `App.tsx`, `config.ts`, `LlmSettingsTab.tsx`, `tests/unit/TranslationServiceFallback.test.ts`).

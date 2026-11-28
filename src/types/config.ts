@@ -124,6 +124,7 @@ export const AppConfigSchema = z.object({
     provider: z.enum(['local', 'groq', 'openai', 'sensevoice']).default('local'),
     apiKey: z.string().optional(),
     baseUrl: z.string().optional(),
+    fallbackToSenseVoice: z.boolean().optional().default(false),
   }),
   llm: z.object({
     provider: z.enum(['groq', 'openai', 'plamo-local']),
@@ -177,6 +178,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     provider: 'local',
     apiKey: '',
     baseUrl: '',
+    fallbackToSenseVoice: false,
   },
   llm: {
     provider: 'groq',

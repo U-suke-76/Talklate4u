@@ -393,7 +393,13 @@ export class WhisperManager extends EventEmitter {
 
   public async transcribe(
     buffer: ArrayBuffer,
-  ): Promise<{ text?: string; language?: string; error?: string; details?: string }> {
+  ): Promise<{
+    text?: string;
+    language?: string;
+    error?: string;
+    details?: string;
+    status?: number;
+  }> {
     const config = ConfigManager.getInstance().getConfig();
     const provider = config.whisper.provider || 'local';
 
@@ -530,8 +536,9 @@ export class WhisperManager extends EventEmitter {
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
       console.error('[WhisperManager] Transcribe error:', message);
-      return { error: 'Transcribe Failed', details: message };
+      return { error: 'Transcribe Failed', details: message, status };
     }
   }
 }

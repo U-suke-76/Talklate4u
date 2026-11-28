@@ -19,11 +19,16 @@ const WHISPER_MODEL_DEFINITIONS: Array<{ value: string; name: string }> = [
 export class AsrService extends EventEmitter {
   private readonly whisperManager: WhisperManager;
   private readonly senseVoiceManager: SenseVoiceManager;
+  private groqCooldownUntil = 0;
+  private groqConsecutive429Count = 0;
+  private senseVoiceStartingPromise: Promise<void> | null = null;
+  private readonly GROQ_FALLBACK_COOLDOWN_MS = 60 * 1000;
+  private readonly MAX_GROQ_RECOVERY_RETRIES = 3;
 
-  constructor() {
+  constructor(whisperManager?: WhisperManager, senseVoiceManager?: SenseVoiceManager) {
     super();
-    this.whisperManager = new WhisperManager();
-    this.senseVoiceManager = new SenseVoiceManager();
+    this.whisperManager = whisperManager ?? new WhisperManager();
+    this.senseVoiceManager = senseVoiceManager ?? new SenseVoiceManager();
 
     this.whisperManager.on('download-progress', (progress: string) => {
       this.emit('download-progress', progress);
@@ -33,12 +38,38 @@ export class AsrService extends EventEmitter {
     });
   }
 
+  public resetFallbackState(): void {
+    this.groqCooldownUntil = 0;
+    this.groqConsecutive429Count = 0;
+  }
+
+  private async ensureSenseVoiceReady(language?: string): Promise<void> {
+    const status = await this.senseVoiceManager.checkStatus();
+    if (status.running) return;
+    if (!this.senseVoiceStartingPromise) {
+      this.senseVoiceStartingPromise = this.senseVoiceManager.start(language).finally(() => {
+        this.senseVoiceStartingPromise = null;
+      });
+    }
+    await this.senseVoiceStartingPromise;
+  }
+
+  private preloadSenseVoiceForFallback(language?: string): void {
+    void this.ensureSenseVoiceReady(language).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[AsrService] SenseVoice fallback preload failed: ${msg}`);
+    });
+  }
+
   public async startOnLaunch(): Promise<void> {
     const config = ConfigManager.getInstance().getConfig();
     if (config.whisper.provider === 'sensevoice') {
       await this.senseVoiceManager.start(config.whisper.language);
     } else {
       await this.whisperManager.start();
+      if (config.whisper.provider === 'groq' && config.whisper.fallbackToSenseVoice) {
+        this.preloadSenseVoiceForFallback(config.whisper.language);
+      }
     }
   }
 
@@ -80,6 +111,7 @@ export class AsrService extends EventEmitter {
 
   public async restart(): Promise<{ success?: boolean; error?: string }> {
     try {
+      this.resetFallbackState();
       const config = ConfigManager.getInstance().getConfig();
       const provider = config.whisper.provider || 'local';
 
@@ -89,7 +121,9 @@ export class AsrService extends EventEmitter {
         return { success: true };
       }
 
-      this.senseVoiceManager.stop();
+      if (!(provider === 'groq' && config.whisper.fallbackToSenseVoice)) {
+        this.senseVoiceManager.stop();
+      }
       const modelName = config.whisper.model;
       const modelPath = path.join(this.whisperManager.getModelsDir(), modelName);
 
@@ -99,6 +133,9 @@ export class AsrService extends EventEmitter {
       }
 
       await this.whisperManager.start(config.whisper.language);
+      if (provider === 'groq' && config.whisper.fallbackToSenseVoice) {
+        this.preloadSenseVoiceForFallback(config.whisper.language);
+      }
       return { success: true };
     } catch (e) {
       this.whisperManager.isDownloading = false;
@@ -107,6 +144,27 @@ export class AsrService extends EventEmitter {
       const errorMessage = e instanceof Error ? e.message : String(e);
       this.stop();
       return { error: errorMessage };
+    }
+  }
+
+  private async transcribeWithSenseVoiceFallback(
+    buffer: ArrayBuffer,
+    language?: string,
+  ): Promise<{
+    text?: string;
+    language?: string;
+    emotion?: string;
+    event?: string;
+    error?: string;
+    details?: string;
+  }> {
+    try {
+      await this.ensureSenseVoiceReady(language);
+      return await this.senseVoiceManager.transcribe(buffer);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[AsrService] SenseVoice fallback error: ${msg}`);
+      return { error: 'SenseVoice Fallback Failed', details: msg };
     }
   }
 
@@ -119,10 +177,45 @@ export class AsrService extends EventEmitter {
     details?: string;
   }> {
     const config = ConfigManager.getInstance().getConfig();
-    if (config.whisper.provider === 'sensevoice') {
+    const provider = config.whisper.provider || 'local';
+
+    if (provider === 'sensevoice') {
       return await this.senseVoiceManager.transcribe(buffer);
     }
-    return await this.whisperManager.transcribe(buffer);
+
+    const canFallback = provider === 'groq' && Boolean(config.whisper.fallbackToSenseVoice);
+    if (canFallback && Date.now() < this.groqCooldownUntil) {
+      return await this.transcribeWithSenseVoiceFallback(buffer, config.whisper.language);
+    }
+
+    const res = await this.whisperManager.transcribe(buffer);
+    const isRateLimit =
+      Boolean(res.error) && (res.status === 429 || /\b429\b|rate.?limit/i.test(res.details || ''));
+
+    if (canFallback && isRateLimit) {
+      this.groqConsecutive429Count += 1;
+      if (this.groqConsecutive429Count >= this.MAX_GROQ_RECOVERY_RETRIES) {
+        this.groqCooldownUntil = Number.POSITIVE_INFINITY;
+        console.warn(
+          `[AsrService] [Fallback] Groq Whisper Rate Limit (429) reached ${this.groqConsecutive429Count} times. Staying on SenseVoice-Small (Local) for this session.`,
+        );
+      } else {
+        const cooldownMs =
+          this.GROQ_FALLBACK_COOLDOWN_MS * Math.pow(2, this.groqConsecutive429Count - 1);
+        this.groqCooldownUntil = Date.now() + cooldownMs;
+        console.warn(
+          `[AsrService] [Fallback] Groq Whisper Rate Limit (429) detected (#${this.groqConsecutive429Count}/${this.MAX_GROQ_RECOVERY_RETRIES}). Falling back to SenseVoice-Small (Local) for ${Math.round(cooldownMs / 1000)}s.`,
+        );
+      }
+      return await this.transcribeWithSenseVoiceFallback(buffer, config.whisper.language);
+    }
+
+    if (provider === 'groq' && !res.error && this.groqConsecutive429Count > 0) {
+      console.log('[AsrService] [Fallback] Groq Whisper recovered from rate limit.');
+      this.resetFallbackState();
+    }
+
+    return res;
   }
 
   public getWhisperModels(): WhisperModel[] {

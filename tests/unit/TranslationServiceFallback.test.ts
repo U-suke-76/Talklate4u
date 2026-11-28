@@ -32,6 +32,7 @@ function createMockConfig(fallbackToPlamoLocal: boolean): AppConfig {
       serverPort: 8081,
       language: 'ko',
       provider: 'local',
+      fallbackToSenseVoice: false,
     },
     llm: {
       provider: 'groq',
