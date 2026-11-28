@@ -3,7 +3,7 @@ import { LogItem } from '../hooks/useSpeechTranslation';
 
 interface LogViewerProps {
   logs: LogItem[];
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export const LogViewer: React.FC<LogViewerProps> = ({ logs, containerRef }) => {
