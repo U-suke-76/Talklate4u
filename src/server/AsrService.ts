@@ -4,6 +4,7 @@ import * as path from 'path';
 
 import { ConfigManager } from '../managers/ConfigManager';
 import { WhisperModel } from '../types/config';
+import { RateLimitFallbackController } from '../utils/RateLimitFallback';
 import { SenseVoiceManager } from './SenseVoiceManager';
 import { WhisperManager } from './WhisperManager';
 
@@ -19,12 +20,9 @@ const WHISPER_MODEL_DEFINITIONS: Array<{ value: string; name: string }> = [
 export class AsrService extends EventEmitter {
   private readonly whisperManager: WhisperManager;
   private readonly senseVoiceManager: SenseVoiceManager;
-  private groqCooldownUntil = 0;
-  private groqConsecutive429Count = 0;
+  private readonly groqFallback = new RateLimitFallbackController();
   private senseVoiceStartingPromise: Promise<void> | null = null;
   private senseVoiceFallbackError: string | null = null;
-  private readonly GROQ_FALLBACK_COOLDOWN_MS = 60 * 1000;
-  private readonly MAX_GROQ_RECOVERY_RETRIES = 3;
 
   constructor(whisperManager?: WhisperManager, senseVoiceManager?: SenseVoiceManager) {
     super();
@@ -40,8 +38,7 @@ export class AsrService extends EventEmitter {
   }
 
   public resetFallbackState(): void {
-    this.groqCooldownUntil = 0;
-    this.groqConsecutive429Count = 0;
+    this.groqFallback.reset();
     this.senseVoiceFallbackError = null;
   }
 
@@ -213,7 +210,7 @@ export class AsrService extends EventEmitter {
     }
 
     const canFallback = provider === 'groq' && Boolean(config.whisper.fallbackToSenseVoice);
-    if (canFallback && Date.now() < this.groqCooldownUntil) {
+    if (canFallback && this.groqFallback.isInCooldown()) {
       return await this.transcribeWithSenseVoiceFallback(buffer, config.whisper.language);
     }
 
@@ -222,24 +219,20 @@ export class AsrService extends EventEmitter {
       Boolean(res.error) && (res.status === 429 || /\b429\b|rate.?limit/i.test(res.details || ''));
 
     if (canFallback && isRateLimit) {
-      this.groqConsecutive429Count += 1;
-      if (this.groqConsecutive429Count >= this.MAX_GROQ_RECOVERY_RETRIES) {
-        this.groqCooldownUntil = Number.POSITIVE_INFINITY;
+      const record = this.groqFallback.recordRateLimit();
+      if (record.stickySession) {
         console.warn(
-          `[AsrService] [Fallback] Groq Whisper Rate Limit (429) reached ${this.groqConsecutive429Count} times. Staying on SenseVoice-Small (Local) for this session.`,
+          `[AsrService] [Fallback] Groq Whisper Rate Limit (429) reached ${record.consecutiveCount} times. Staying on SenseVoice-Small (Local) for this session.`,
         );
       } else {
-        const cooldownMs =
-          this.GROQ_FALLBACK_COOLDOWN_MS * Math.pow(2, this.groqConsecutive429Count - 1);
-        this.groqCooldownUntil = Date.now() + cooldownMs;
         console.warn(
-          `[AsrService] [Fallback] Groq Whisper Rate Limit (429) detected (#${this.groqConsecutive429Count}/${this.MAX_GROQ_RECOVERY_RETRIES}). Falling back to SenseVoice-Small (Local) for ${Math.round(cooldownMs / 1000)}s.`,
+          `[AsrService] [Fallback] Groq Whisper Rate Limit (429) detected (#${record.consecutiveCount}/${record.maxRetries}). Falling back to SenseVoice-Small (Local) for ${Math.round(record.cooldownMs / 1000)}s.`,
         );
       }
       return await this.transcribeWithSenseVoiceFallback(buffer, config.whisper.language);
     }
 
-    if (provider === 'groq' && !res.error && this.groqConsecutive429Count > 0) {
+    if (provider === 'groq' && !res.error && this.groqFallback.hasActiveFailures()) {
       console.log('[AsrService] [Fallback] Groq Whisper recovered from rate limit.');
       this.resetFallbackState();
     }

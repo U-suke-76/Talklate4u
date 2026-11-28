@@ -8,10 +8,10 @@ import { OverlayServer } from '../server/OverlayServer';
 import Handlebars from 'handlebars';
 
 import { PathUtils } from '../utils/PathUtils';
+import { RateLimitFallbackController } from '../utils/RateLimitFallback';
 import { PromptFactory } from './PromptFactory';
 import { resolveModelAdapter } from './adapters/ModelAdapter';
-import { GlossaryPackMatcher, parseTsvGlossary } from './glossary/TsvGlossaryPack';
-import type { GlossaryPack } from '../types/config';
+import { GlossaryResolver } from './glossary/GlossaryResolver';
 
 interface ConversationTurn {
   original: string;
@@ -26,15 +26,11 @@ export class TranslationService {
   private currentModelIndex = 0;
   private subtitleIdCounter = 1;
   private history: ConversationTurn[] = [];
-  private packMatcher: GlossaryPackMatcher | null = null;
-  private packMatcherKey = '';
-  private groqCooldownUntil = 0;
-  private groqConsecutive429Count = 0;
+  private readonly glossaryResolver = new GlossaryResolver();
+  private readonly groqFallback = new RateLimitFallbackController();
   private readonly MAX_HISTORY_TURNS = 6;
   private readonly HISTORY_TTL_MS = 2 * 60 * 1000; // 2 minutes context window
   private readonly STREAM_THROTTLE_MS = 50;
-  private readonly GROQ_FALLBACK_COOLDOWN_MS = 60 * 1000;
-  private readonly MAX_GROQ_RECOVERY_RETRIES = 3;
   private readonly FALLBACK_PLAMO_MODEL = 'plamo-3-translate-0.8b';
 
   // Combined patterns from main.ts
@@ -164,8 +160,7 @@ export class TranslationService {
   public resetClient() {
     this.openaiClient = null;
     this.history = [];
-    this.groqCooldownUntil = 0;
-    this.groqConsecutive429Count = 0;
+    this.groqFallback.reset();
   }
 
   private getActiveHistory(): ConversationTurn[] {
@@ -205,110 +200,6 @@ export class TranslationService {
     }
   }
 
-  /**
-   * Resolves glossary pairs matching the current translation direction (`sourceLang` -> `targetLangCode`).
-   * If `filterByInputText` is provided, only entries appearing in the input text (case-insensitive) are returned.
-   */
-  private resolveMatchedGlossaryEntries(
-    sourceLang: string,
-    targetLangCode: string,
-    filterByInputText?: string,
-  ): Array<{ source: string; target: string }> {
-    const config = ConfigManager.getInstance().getConfig();
-    const glossary = config.glossary || [];
-    if (glossary.length === 0) return [];
-
-    const lowerText = filterByInputText?.toLowerCase();
-    const matched: Array<{ source: string; target: string }> = [];
-    const seen = new Set<string>();
-
-    for (const entry of glossary) {
-      const isUniMatch =
-        (entry.sourceLang === sourceLang || sourceLang === 'Unknown') &&
-        entry.targetLang === targetLangCode;
-
-      const isBiMatchReversed =
-        entry.bidirectional &&
-        (entry.targetLang === sourceLang || sourceLang === 'Unknown') &&
-        entry.sourceLang === targetLangCode;
-
-      let pair: { source: string; target: string } | null = null;
-      if (isUniMatch) {
-        pair = { source: entry.sourceText, target: entry.targetText };
-      } else if (isBiMatchReversed) {
-        pair = { source: entry.targetText, target: entry.sourceText };
-      }
-
-      if (!pair || !pair.source) continue;
-      if (lowerText !== undefined && !lowerText.includes(pair.source.toLowerCase())) {
-        continue;
-      }
-
-      const key = `${pair.source}=>${pair.target}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        matched.push(pair);
-      }
-    }
-
-    return matched;
-  }
-
-  /**
-   * Returns a matcher built from enabled TSV glossary packs (rebuilt only when packs change).
-   */
-  private getPackMatcher(packs: GlossaryPack[] | undefined): GlossaryPackMatcher | null {
-    const enabled = (packs || []).filter((p) => p.enabled && p.contents?.length > 0);
-    if (enabled.length === 0) return null;
-
-    const key = enabled
-      .map((p) => `${p.id}:${p.contents.reduce((n, c) => n + c.length, 0)}`)
-      .join('|');
-    if (!this.packMatcher || this.packMatcherKey !== key) {
-      this.packMatcher = new GlossaryPackMatcher(
-        parseTsvGlossary(enabled.flatMap((p) => p.contents)),
-      );
-      this.packMatcherKey = key;
-    }
-    return this.packMatcher;
-  }
-
-  /**
-   * Combines user glossary entries with TSV pack terms found in the input text.
-   * User entries take priority; pack terms are injected only when they appear in `text`.
-   */
-  private resolveCombinedGlossary(
-    sourceLang: string,
-    targetLangCode: string,
-    text: string | undefined,
-    filterUserEntriesByText: boolean,
-  ): Array<{ source: string; target: string }> {
-    const user = this.resolveMatchedGlossaryEntries(
-      sourceLang,
-      targetLangCode,
-      filterUserEntriesByText ? text : undefined,
-    );
-    if (!text) return user;
-
-    const config = ConfigManager.getInstance().getConfig();
-    const matcher = this.getPackMatcher(config.glossaryPacks);
-    if (!matcher) return user;
-
-    const seen = new Set(user.map((p) => p.source.toLowerCase()));
-    const packTerms = matcher
-      .match(text, sourceLang, targetLangCode)
-      .filter((p) => !seen.has(p.source.toLowerCase()));
-    return [...user, ...packTerms];
-  }
-
-  private getGlossaryBlock(sourceLang: string, targetLangCode: string, text?: string): string {
-    const matched = this.resolveCombinedGlossary(sourceLang, targetLangCode, text, false);
-    if (matched.length === 0) return '';
-
-    const lines = matched.map((pair) => `- ${pair.source}: ${pair.target}`);
-    return `Use the following term definitions strictly:\n` + lines.join('\n');
-  }
-
   private getSystemPrompt(detectedLanguage?: string, text?: string): string {
     if (!this.promptTemplate) {
       this.loadSystemPromptTemplate();
@@ -323,7 +214,13 @@ export class TranslationService {
       detectedLanguage,
     );
     const sourceLang = detectedLanguage || 'Unknown';
-    const glossaryBlock = this.getGlossaryBlock(sourceLang, targetLangCode, text);
+    const glossaryBlock = this.glossaryResolver.formatGlossaryBlock(
+      config.glossary,
+      config.glossaryPacks,
+      sourceLang,
+      targetLangCode,
+      text,
+    );
 
     return this.promptTemplate({
       INSTRUCTION: instruction,
@@ -342,7 +239,14 @@ export class TranslationService {
     const { targetLangCode } = PromptFactory.getPrompt(configuredTarget, detectedLanguage);
     const sourceLang = detectedLanguage || 'Unknown';
 
-    return this.resolveCombinedGlossary(sourceLang, targetLangCode, text, true);
+    return this.glossaryResolver.resolveCombined(
+      config.glossary,
+      config.glossaryPacks,
+      sourceLang,
+      targetLangCode,
+      text,
+      true,
+    );
   }
 
   private async translateWithLocalPlamo(
@@ -493,7 +397,7 @@ export class TranslationService {
       );
     }
 
-    if (canFallbackToPlamo && Date.now() < this.groqCooldownUntil) {
+    if (canFallbackToPlamo && this.groqFallback.isInCooldown()) {
       return this.translateWithLocalPlamo(
         text,
         detectedLanguage,
@@ -693,9 +597,8 @@ export class TranslationService {
           `[TRANS][${config.llm.provider}/${adapter.family}] [${duration}ms] ${text} -> ${cleanText}`,
         );
 
-        if (isGroq && (this.groqCooldownUntil > 0 || this.groqConsecutive429Count > 0)) {
-          this.groqCooldownUntil = 0;
-          this.groqConsecutive429Count = 0;
+        if (isGroq && this.groqFallback.hasActiveFailures()) {
+          this.groqFallback.reset();
           const recoverMsg = '[Fallback] Groq recovered. Resuming Groq translation.';
           console.log(`[TranslationService] ${recoverMsg}`);
           this.onLog(recoverMsg);
@@ -735,18 +638,14 @@ export class TranslationService {
             continue; // Retry loop
           }
           if (canFallbackToPlamo) {
-            this.groqConsecutive429Count++;
-            if (this.groqConsecutive429Count >= this.MAX_GROQ_RECOVERY_RETRIES) {
-              this.groqCooldownUntil = Number.POSITIVE_INFINITY;
-              const msg = `[Fallback] Groq Rate Limit (429) reached ${this.MAX_GROQ_RECOVERY_RETRIES} times. Staying on PLaMo 3 Translate 0.8B (Local) for this session.`;
+            const record = this.groqFallback.recordRateLimit();
+            if (record.stickySession) {
+              const msg = `[Fallback] Groq Rate Limit (429) reached ${record.maxRetries} times. Staying on PLaMo 3 Translate 0.8B (Local) for this session.`;
               console.warn(`[TranslationService] ${msg}`);
               this.onLog(msg);
             } else {
-              const cooldownMs =
-                this.GROQ_FALLBACK_COOLDOWN_MS * Math.pow(2, this.groqConsecutive429Count - 1);
-              this.groqCooldownUntil = Date.now() + cooldownMs;
-              const cooldownSec = Math.round(cooldownMs / 1000);
-              const msg = `[Fallback] Groq Rate Limit (429). Continuing with PLaMo 3 Translate 0.8B (Local) for ${cooldownSec}s (attempt ${this.groqConsecutive429Count}/${this.MAX_GROQ_RECOVERY_RETRIES}).`;
+              const cooldownSec = Math.round(record.cooldownMs / 1000);
+              const msg = `[Fallback] Groq Rate Limit (429). Continuing with PLaMo 3 Translate 0.8B (Local) for ${cooldownSec}s (attempt ${record.consecutiveCount}/${record.maxRetries}).`;
               console.warn(`[TranslationService] ${msg}`);
               this.onLog(msg);
             }

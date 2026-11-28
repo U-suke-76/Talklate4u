@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- refactor: Extracted shared Groq 429 exponential backoff and session-lock controller (`src/utils/RateLimitFallback.ts`) used by both `AsrService` and `TranslationService`, extracted glossary resolution into `src/services/glossary/GlossaryResolver.ts`, replaced `any` types in `OverlayServer.ts` with `Partial<OverlayStyles>`, and split `usePlamoLocal` (`src/hooks/usePlamoLocal.ts`) and `AppHeader` (`src/components/AppHeader.tsx`) out of `App.tsx`, with unit tests in `tests/unit/RateLimitFallback.test.ts`.
+
 ### Added
 
 - fix: Serialized concurrent `PlamoLocalService.execute()` requests via an execution queue (`WllamaEngine.ts`) to prevent WebGPU / Wllama inference hangs when multiple utterances arrive simultaneously (e.g., during rapid speech or Groq 429 fallback), and added unmount cleanup in `useVAD.ts` to destroy `MicVAD` and prevent duplicate VAD instances on hot reload.

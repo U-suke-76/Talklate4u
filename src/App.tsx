@@ -4,8 +4,9 @@ import { SettingsModal } from './components/SettingsModal';
 import { useServerStatus } from './hooks/useServerStatus';
 import { useSpeechTranslation } from './hooks/useSpeechTranslation';
 import { LogViewer } from './components/LogViewer';
+import { AppHeader } from './components/AppHeader';
 import { useMicrophone } from './hooks/useMicrophone';
-import { PlamoLocalService } from './services/wllama/WllamaEngine';
+import { usePlamoLocal } from './hooks/usePlamoLocal';
 import { cn } from './utils/cn';
 
 const App: React.FC = () => {
@@ -15,7 +16,6 @@ const App: React.FC = () => {
   const [fallbackToSenseVoice, setFallbackToSenseVoice] = useState(false);
   const [llmProvider, setLlmProvider] = useState<string>('');
   const [fallbackToPlamoLocal, setFallbackToPlamoLocal] = useState(false);
-  const [plamoStatus, setPlamoStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -50,51 +50,7 @@ const App: React.FC = () => {
   const { activeMic, loadMicrophones, selectMicrophone, setActiveMic } =
     useMicrophone(addSystemLog);
 
-  const lastPlamoProgressLogRef = useRef<string>('');
-
-  const logPlamoProgress = React.useCallback((msg: string) => {
-    setStatusText(msg);
-    const pctMatch = msg.match(/\((\d+)%\)/);
-    const key = pctMatch ? `${Math.floor(parseInt(pctMatch[1], 10) / 10) * 10}%` : msg;
-    if (lastPlamoProgressLogRef.current !== key) {
-      lastPlamoProgressLogRef.current = key;
-      window.electronAPI.log(`[PLaMo Local] ${msg}`);
-    }
-  }, []);
-
-  const preloadPlamoIfNeeded = React.useCallback(
-    (provider?: string, model?: string, fallbackEnabled?: boolean) => {
-      const shouldPreload =
-        provider === 'plamo-local' || (provider === 'groq' && Boolean(fallbackEnabled));
-      if (!shouldPreload) {
-        setPlamoStatus('idle');
-        return;
-      }
-      const targetModel = provider === 'plamo-local' ? model : 'plamo-3-translate-0.8b';
-      const modelLabel = targetModel || 'plamo-3-translate-0.8b';
-      setPlamoStatus('loading');
-      window.electronAPI.log(
-        `[PLaMo Local] Preloading model: ${modelLabel}${provider === 'groq' ? ' (Fallback Standby)' : ''}`,
-      );
-      PlamoLocalService.getInstance()
-        .ensureLoaded(targetModel, logPlamoProgress)
-        .then(() => {
-          const readyMsg = `[PLaMo Local] Ready (${modelLabel}${provider === 'groq' ? ' / Fallback Standby' : ''})`;
-          setPlamoStatus('ready');
-          addSystemLog(readyMsg);
-          window.electronAPI.log(readyMsg);
-          setStatusText('Ready');
-        })
-        .catch((e) => {
-          const errMsg = `[PLaMo Local] Init error: ${e instanceof Error ? e.message : String(e)}`;
-          setPlamoStatus('error');
-          addSystemLog(errMsg);
-          window.electronAPI.log(errMsg);
-          setStatusText('PLaMo Local Init Error');
-        });
-    },
-    [addSystemLog, logPlamoProgress],
-  );
+  const { plamoStatus, preloadPlamoIfNeeded } = usePlamoLocal(addSystemLog, setStatusText);
 
   // --- Effects ---
 
@@ -107,40 +63,6 @@ const App: React.FC = () => {
     // Listen for menu settings click
     window.electronAPI.onOpenSettings(() => {
       setShowSettings(true);
-    });
-
-    // Listen for PLaMo Local translation requests from Main process
-    window.electronAPI.onPlamoTranslateRequest(async (payload) => {
-      try {
-        const rawText = await PlamoLocalService.getInstance().execute({
-          modelId: payload.model,
-          messages: payload.messages,
-          stop: payload.stop,
-          chat_template_kwargs: payload.chat_template_kwargs,
-          fallbackPrompt: payload.fallbackPrompt,
-          temperature: payload.temperature,
-          onProgress: logPlamoProgress,
-          onChunk: payload.stream
-            ? (delta) => {
-                window.electronAPI.sendPlamoTranslateChunk({
-                  requestId: payload.requestId,
-                  delta,
-                });
-              }
-            : undefined,
-        });
-        window.electronAPI.sendPlamoTranslateResult({
-          requestId: payload.requestId,
-          text: rawText,
-        });
-      } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        window.electronAPI.log(`[PLaMo Local] Inference error (${payload.requestId}): ${errMsg}`);
-        window.electronAPI.sendPlamoTranslateResult({
-          requestId: payload.requestId,
-          error: errMsg,
-        });
-      }
     });
 
     // Preload PLaMo Local model on startup if configured
@@ -158,7 +80,7 @@ const App: React.FC = () => {
       .catch(() => {
         /* ignore */
       });
-  }, [addSystemLog, logPlamoProgress, preloadPlamoIfNeeded]);
+  }, [addSystemLog, preloadPlamoIfNeeded]);
   useEffect(() => {
     if (volumeRef.current) {
       volumeRef.current.style.width = `${Math.min(100, volume * 500)}%`;
@@ -241,83 +163,20 @@ const App: React.FC = () => {
     }
   };
 
-  const asrLabel =
-    asrProvider === 'sensevoice'
-      ? 'SenseVoice'
-      : asrProvider === 'groq'
-        ? 'Groq Whisper'
-        : asrProvider === 'openai'
-          ? 'OpenAI Whisper'
-          : 'Whisper';
-
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-gray-100 p-4 font-sans">
-      <header className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold bg-linear-to-r from-primary to-accent bg-clip-text text-transparent">
-            Talklate4u
-          </h1>
-          <span
-            className={cn('badge badge-outline', serverStatus ? 'badge-success' : 'badge-error')}
-          >
-            {serverStatus ? `${asrLabel} Ready` : `${asrLabel} Offline`}
-          </span>
-          {asrProvider === 'groq' && fallbackToSenseVoice && (
-            <span
-              className={cn(
-                'badge badge-outline',
-                fallbackSenseVoiceStatus === 'ready'
-                  ? 'badge-success'
-                  : fallbackSenseVoiceStatus === 'error'
-                    ? 'badge-error'
-                    : 'badge-warning',
-              )}
-              title={statusText}
-            >
-              {fallbackSenseVoiceStatus === 'ready'
-                ? 'SenseVoice Standby'
-                : fallbackSenseVoiceStatus === 'error'
-                  ? 'SenseVoice Error'
-                  : 'SenseVoice Loading...'}
-            </span>
-          )}
-          <span
-            className={cn(
-              'badge badge-outline',
-              overlayStatus?.success ? 'badge-success' : 'badge-error',
-            )}
-            title={
-              overlayStatus?.success ? `Port: ${overlayStatus.port}` : 'Overlay Server not running'
-            }
-          >
-            {overlayStatus?.success ? 'Overlay Ready' : 'Overlay Offline'}
-          </span>
-          {(llmProvider === 'plamo-local' || (llmProvider === 'groq' && fallbackToPlamoLocal)) && (
-            <span
-              className={cn(
-                'badge badge-outline',
-                plamoStatus === 'ready'
-                  ? 'badge-success'
-                  : plamoStatus === 'error'
-                    ? 'badge-error'
-                    : 'badge-warning',
-              )}
-              title={statusText}
-            >
-              {plamoStatus === 'ready'
-                ? llmProvider === 'groq'
-                  ? 'PLaMo Standby'
-                  : 'PLaMo Ready'
-                : plamoStatus === 'error'
-                  ? 'PLaMo Error'
-                  : 'PLaMo Loading...'}
-            </span>
-          )}
-        </div>
-        <button className="btn btn-sm btn-ghost" onClick={() => setShowSettings(true)}>
-          ⚙️ Settings
-        </button>
-      </header>
+      <AppHeader
+        asrProvider={asrProvider}
+        serverStatus={serverStatus}
+        fallbackToSenseVoice={fallbackToSenseVoice}
+        fallbackSenseVoiceStatus={fallbackSenseVoiceStatus}
+        overlayStatus={overlayStatus}
+        llmProvider={llmProvider}
+        fallbackToPlamoLocal={fallbackToPlamoLocal}
+        plamoStatus={plamoStatus}
+        statusText={statusText}
+        onOpenSettings={() => setShowSettings(true)}
+      />
 
       <main className="flex-1 flex flex-col gap-4 overflow-hidden">
         <LogViewer logs={logs} containerRef={logsContainerRef} />
