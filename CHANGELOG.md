@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- perf: Upgraded `@wllama/wllama` to `4.0.0` for improved local PLaMo 3 Translate WebGPU inference performance, and added `rename: { stripBase: true }` to `viteStaticCopy` targets in `vite.renderer.config.ts` for `vite-plugin-static-copy` v4 compatibility (`package.json`, `package-lock.json`, `vite.renderer.config.ts`).
 - chore: Updated minor and patch dependencies via `npm update` (`axios`, `onnxruntime-web`, `sherpa-onnx-node`, `tailwindcss`, `daisyui`, `prettier`, `playwright`, etc.) (`package-lock.json`).
 - chore: Upgraded `electron` to `^45.5.0` (Chromium 156 / Node.js 24.22) (`package.json`, `package-lock.json`).
 - chore: Upgraded `@electron-forge/*` to `v8.0.1`, `@electron/fuses` to `v2`, `vite` to `v8.4.0`, `vitest` to `v5.1.2`, `@vitejs/plugin-react` to `v6.3.0`, and `vite-plugin-static-copy` to `v4.1.1`, resolving all remaining `npm audit` vulnerabilities (`0 vulnerabilities`). Updated `forge.config.ts` (`PublisherGitHub` export name and `@electron/packager` v21 `afterExtract` hook signature) and `tests/unit/WllamaEngine.test.ts` (Vitest 5 constructor mock syntax).

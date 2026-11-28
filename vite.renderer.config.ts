@@ -16,43 +16,52 @@ export default defineConfig({
         {
           src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
           dest: '.',
+          rename: { stripBase: true },
         },
         {
           src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs',
           dest: '.',
+          rename: { stripBase: true },
         },
         {
           src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.wasm',
           dest: '.',
+          rename: { stripBase: true },
         },
         {
           src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm',
           dest: '.',
+          rename: { stripBase: true },
         },
         {
           src: 'node_modules/onnxruntime-web/dist/ort.all.min.js',
           dest: '.',
+          rename: { stripBase: true },
         },
         {
           src: 'node_modules/@ricky0123/vad-web/dist/silero_vad_v5.onnx',
           dest: '.',
+          rename: { stripBase: true },
         },
         {
           src: 'node_modules/@ricky0123/vad-web/dist/silero_vad_legacy.onnx',
           dest: '.',
+          rename: { stripBase: true },
         },
         {
           src: 'node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js',
           dest: '.',
+          rename: { stripBase: true },
         },
         {
           src: 'node_modules/@ricky0123/vad-web/dist/bundle.min.js',
           dest: '.',
-          rename: 'vad.bundle.min.js',
+          rename: { stripBase: true, name: 'vad.bundle.min.js' },
         },
         {
           src: 'node_modules/@wllama/wllama/esm/wasm/wllama.wasm',
           dest: '.',
+          rename: { stripBase: true },
         },
       ],
     }),
