@@ -181,12 +181,12 @@ export const WhisperSettingsTab: React.FC<WhisperSettingsTabProps> = ({
               }
             />
             <span className="text-sm text-gray-300">
-              Groq のレート制限 (429) 時に SenseVoice-Small (Local) で続行する
+              Fall back to SenseVoice-Small (Local) on Groq rate limit (429)
             </span>
           </label>
           <p className="text-xs text-gray-400">
-            有効にすると、Groq Whisper がレート制限に達した際にローカルの SenseVoice-Small
-            へ自動で切り替えて音声認識を継続します（一定時間後に Groq への復帰を再試行します）。
+            When enabled, automatically switches to local SenseVoice-Small if Groq Whisper hits a
+            rate limit, and retries Groq after cooldown.
           </p>
         </div>
       </>

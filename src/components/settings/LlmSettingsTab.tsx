@@ -171,8 +171,8 @@ export const LlmSettingsTab: React.FC<LlmSettingsTabProps> = ({
           {(!config.llm.groqModels || config.llm.groqModels.length === 0) && (
             <p className="text-xs text-warning">
               {!config.llm.apiKey
-                ? '※ API Key を入力後、右側の更新ボタン（↻）を押してモデル一覧を取得してください。'
-                : '※ モデル一覧が未取得です。右側の更新ボタン（↻）を押して取得してください。'}
+                ? 'Enter your API Key, then click the reload button (↻) on the right to fetch models.'
+                : 'Models not fetched yet. Click the reload button (↻) on the right to load them.'}
             </p>
           )}
         </div>
@@ -216,12 +216,12 @@ export const LlmSettingsTab: React.FC<LlmSettingsTabProps> = ({
                 }
               />
               <span className="text-sm text-gray-300">
-                Groq のトークン制限 (429) 時に PLaMo 0.8B (Local) で続行する
+                Fall back to PLaMo 0.8B (Local) on Groq rate limit (429)
               </span>
             </label>
             <p className="text-xs text-gray-400">
-              有効にすると、Groq がレート制限に達した際にローカルの PLaMo 3 Translate 0.8B
-              へ自動で切り替えて翻訳を継続します（一定時間後に Groq への復帰を再試行します）。
+              When enabled, automatically switches to local PLaMo 3 Translate 0.8B if Groq hits a
+              rate limit, and retries Groq after cooldown.
             </p>
           </div>
         </>
@@ -248,11 +248,11 @@ export const LlmSettingsTab: React.FC<LlmSettingsTabProps> = ({
               })
             }
           />
-          <span className="text-sm text-gray-300">翻訳テキストをリアルタイムに逐次表示する</span>
+          <span className="text-sm text-gray-300">Stream translated text in real time</span>
         </label>
         <p className="text-xs text-gray-400">
-          有効にすると LLM の生成に合わせてメイン画面およびオーバーレイ字幕が逐次表示されます（Groq
-          / OpenAI 互換 / PLaMo Local に対応）。
+          When enabled, progressively updates subtitles in the main window and OBS overlay as the
+          LLM generates text (Groq, OpenAI Compatible, and PLaMo Local).
         </p>
       </div>
     </div>

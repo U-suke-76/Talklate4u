@@ -119,7 +119,7 @@ export const OverlaySettingsComponents: React.FC<OverlaySettingsProps> = ({ styl
                             paintOrder: 'stroke fill',
                           }}
                         >
-                          {part.replace(/%2/g, '翻訳テキスト')}
+                          {part.replace(/%2/g, 'Translated Text')}
                         </span>
                       );
                     }
@@ -370,7 +370,7 @@ export const OverlaySettingsComponents: React.FC<OverlaySettingsProps> = ({ styl
                   styles.customCSS.trim() === '' ||
                   styles.customCSS === DEFAULT_CUSTOM_CSS ||
                   window.confirm(
-                    '現在のUI設定でカスタムCSSを上書きしますか？（手動で編集したCSSは失われます）',
+                    'Overwrite Custom CSS with the current UI settings? Any manual CSS edits will be lost.',
                   )
                 ) {
                   handleChange('customCSS', generateCustomCSSFromStyles(styles));
