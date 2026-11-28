@@ -1,41 +1,46 @@
 # Talklate4u
 
-リアルタイム音声認識・翻訳 & OBSオーバーレイ表示アプリケーション。
-ローカルで動作する Whisper (OpenVINO最適化) による高速な文字起こしと、LLM (Groq, OpenAI等) による高精度な翻訳を組み合わせ、配信画面などに字幕を表示できます。
+リアルタイム音声認識・翻訳 & OBS オーバーレイ表示アプリケーション。
+ローカル ASR（Whisper OpenVINO/CUDA、SenseVoice-Small ONNX）およびクラウド ASR（Groq、OpenAI）と、オンデバイス WebGPU 翻訳（PLaMo 3 Translate）やクラウド LLM（Groq、OpenAI 互換 API）を組み合わせ、配信画面などに字幕を逐次表示できます。
 
 ## 🌟 主な機能
 
-- **リアルタイム文字起こし**: Whisper.cpp を使用した高速・高精度な音声認識。
-- **自動翻訳**: 認識したテキストを LLM (Groq, OpenAI API) で即座に翻訳。
-- **OBS オーバーレイ**: 背景透過の字幕ウィンドウを OBS に重ねて表示可能。
-- **OpenVINO 最適化**: Intel CPU/GPU を活用した高速推論。
+- **柔軟な音声認識 (ASR)**: ローカルの `whisper.cpp`（CPU / OpenVINO / CUDA）、**SenseVoice-Small（ローカル ONNX / `sherpa-onnx-node`）**、クラウド ASR（Groq / OpenAI）に対応。
+- **マルチプロバイダー翻訳 (LLM)**: **Groq**、**OpenAI 互換 API**（OpenAI、Ollama、LM Studio、vLLM 等）、**PLaMo 3 Translate（ローカル WebGPU: `0.8B` / `2B`）** に対応。
+- **レート制限自動フォールバック**: Groq で HTTP 429 が発生した際、ローカルモデルへ自動切り替え（`Groq Whisper → SenseVoice-Small`、`Groq LLM → PLaMo 3 Translate 0.8B`）。指数バックオフ（`60秒 → 120秒`）および 3 回連続時のセッション固定に対応。
+- **ストリーミング字幕表示**: LLM の生成に合わせてメイン画面のログと OBS オーバーレイをリアルタイムに逐次更新。
+- **多言語用語集 & TSV/ZIP パック**: 優先度付き用語登録および多言語 TSV/ZIP 用語集パックのインポートに対応。
+- **OBS オーバーレイ**: 背景透過の字幕ウィンドウを OBS に重ねて表示し、スタイルやカスタム CSS も設定可能。
 
 ## 📦 インストールと使用方法 (一般ユーザー向け)
 
 1. **インストール**
    配布されたインストーラー (`.exe`) を実行してインストールします。
 
-2. **初期設定 (音声認識・翻訳設定)**
-   翻訳機能を利用するには、画面右上の「Settings」ボタン、またはメニューバーの **File > Settings** から設定を行います。
-   - **音声認識 (Whisper)**
-     - **Provider**: `Local` (デフォルト)、`Groq`、`OpenAI` から選択できます。
-     - **Groq/OpenAI**: API Keyの設定が必要です。クラウドASRを使用することで、PCに負荷をかけずに `large-v3-turbo` モデルによる高精度な認識が可能です。
+2. **初期設定 (音声認識・翻訳・用語集設定)**
+   画面右上の「Settings」ボタン、またはメニューバーの **File > Settings** から設定を行います。
+   - **音声認識 (Whisper タブ)**
+     - **ASR Provider**: `Local (whisper.cpp)`、`SenseVoice-Small (Local)`、`Groq API`、`OpenAI Compatible` から選択できます。
+     - **SenseVoice-Small (Local)**: API キー不要でローカル ONNX 推論を実行します（初回起動時に INT8 モデルを自動ダウンロード）。
+     - **Groq / OpenAI**: API Key の設定が必要です。Groq 利用時は **Rate Limit Fallback** を有効にすると、429 発生時にローカルの SenseVoice-Small へ自動フォールバックします。
 
-   - **翻訳 (LLM)**
+   - **翻訳 (LLM タブ)**
      - **Groq (推奨)**
-       - **API Key**: [Groq Cloud Console](https://console.groq.com/keys) にアクセスして API Key を作成し、入力してください。
-       - 高速かつ現在は無料枠も大きいため、リアルタイム翻訳に最適です。
-       - モデルのリロードボタンで、現在Groqで提供されているモデルを取得できます。
+       - **API Key**: [Groq Cloud Console](https://console.groq.com/keys) で API Key を作成して入力します。
+       - 高速かつ無料枠もあるためリアルタイム翻訳に最適です。リロードボタンで現在利用可能なモデル一覧を取得できます。
+       - **Auto Fallback** を有効にすると、トークン制限（429）時にローカルの `PLaMo 3 Translate 0.8B` で翻訳を継続します。
+     - **PLaMo 3 Translate (Local WebGPU)**
+       - API キー不要・完全オンデバイス（WebGPU）で `plamo-3-translate-0.8b` または `plamo-3-translate-2b` を実行できます。
+     - **OpenAI 互換 (OpenAI / Ollama / LM Studio / リモート vLLM)**
+       - **OpenAI 利用時**: API Key に `sk-` から始まるキーを入力し、Base URL は空欄にします。
+       - **Ollama / LM Studio / リモート vLLM 利用時**: Base URL にサーバーのアドレス（例: `http://localhost:11434/v1` や `http://localhost:1234/v1`）を入力し、認証不要の場合は API Key に任意の文字列を入力します。Google Colab 上で PLaMo 3 Translate 8B を立てる手順は [docs/colab/README.md](docs/colab/README.md) を参照してください。
+     - **Streaming Display**: メイン画面および OBS オーバーレイでのリアルタイム逐次表示を切り替えます（Groq / OpenAI 互換 / PLaMo Local に対応）。
 
-     - **OpenAI API / ローカルLLM**
-       - **Provider**: `OpenAI Compatible` を選択します。
-       - **OpenAI 利用時**: API Key に `sk-` から始まるキーを入力します。Base URL は空欄で OK です。
-       - **Ollama / LM Studio 利用時**:
-         - Base URL にローカルサーバーのアドレス (例: `http://localhost:11434/v1` や `http://localhost:1234/v1`) を入力します。
-         - API Key には `ollama` など任意の文字列を入力してください。
+   - **用語集 (Glossary タブ)**
+     - 翻訳方向・優先度付きの単語登録や、多言語 TSV/ZIP 用語集パックのインポートが行えます。
 
 3. **文字起こしの開始**
-   マイクを選択して「Start」ボタンを押すと、文字起こしと翻訳が始まります。
+   **General** タブでマイクを選択（またはデフォルトのまま）し、「Start Recording」ボタンを押すと文字起こしと翻訳が始まります。
 
 4. **OBS への表示**
    OBS 側で「ブラウザソース」を追加し、URL に `http://localhost:9000` を指定すると、字幕が背景透過で表示されます。
@@ -104,7 +109,7 @@ NVIDIA製 GPU を搭載している場合、CUDA版の `whisper-server.exe` を�
 
 ### 必須要件
 
-- **Node.js**: v18以上
+- **Node.js**: v20 以上 (v22 以上推奨)
 - **Visual Studio Build Tools 2022 (または 2026)**
   - ワークロード: "Desktop development with C++" (C++ によるデスクトップ開発)
 - **OpenVINO Toolkit**: 2025.0 以降
@@ -197,6 +202,21 @@ npm run make
 
 `package` の処理を行った後、さらにインストーラー (`setup.exe`) を作成します。
 ビルド設定 (`forge.config.ts`) により、上記でビルドした `build/bin` フォルダ一式が同梱されます。
+
+**テスト・Lint・品質チェック:**
+
+```bash
+# Vitest 単体テストの実行
+npm run test:unit
+
+# 型チェック / Lint / フォーマット
+npx tsc --noEmit
+npm run lint
+npm run format
+
+# 翻訳品質評価 CLI
+npm run eval:translation -- --help
+```
 
 ---
 

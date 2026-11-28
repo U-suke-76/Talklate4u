@@ -1,44 +1,49 @@
 # Talklate4u
 
 실시간 음성 인식・번역 & OBS 오버레이 표시 애플리케이션.
-로컬에서 작동하는 Whisper (OpenVINO 최적화)를 통한 빠른 받아쓰기와, LLM (Groq, OpenAI 등)을 이용한 고정밀 번역을 결합하여, 방송 화면 등에 자막을 표시할 수 있습니다.
+로컬 ASR(Whisper OpenVINO/CUDA, SenseVoice-Small ONNX) 및 클라우드 ASR(Groq, OpenAI)과 온디바이스 WebGPU 번역(PLaMo 3 Translate) 및 클라우드 LLM(Groq, OpenAI 호환 API)을 결합하여 방송 화면 등에 자막을 실시간으로 표시할 수 있습니다.
 
 ## 🌟 주요 기능
 
-- **실시간 받아쓰기**: Whisper.cpp를 사용한 고속・고정밀 음성 인식.
-- **자동 번역**: 인식된 텍스트를 LLM (Groq, OpenAI API)으로 즉시 번역.
-- **OBS 오버레이**: 배경 투명 자막 창을 OBS에 겹쳐서 표시 가능.
-- **OpenVINO 최적화**: Intel CPU/GPU를 활용한 고속 추론.
+- **유연한 음성 인식 (ASR)**: 로컬 `whisper.cpp`(CPU / OpenVINO / CUDA), **SenseVoice-Small(로컬 ONNX / `sherpa-onnx-node`)**, 클라우드 ASR(Groq / OpenAI) 지원.
+- **멀티 프로바이더 번역 (LLM)**: **Groq**, **OpenAI 호환 API**(OpenAI, Ollama, LM Studio, vLLM 등), **PLaMo 3 Translate(로컬 WebGPU: `0.8B` / `2B`)** 지원.
+- **속도 제한 자동 폴백**: Groq에서 HTTP 429 발생 시 로컬 모델로 자동 전환(`Groq Whisper -> SenseVoice-Small`, `Groq LLM -> PLaMo 3 Translate 0.8B`). 지수 백오프(`60초 -> 120초`) 및 3회 연속 발생 시 세션 고정 지원.
+- **스트리밍 자막 표시**: LLM 생성에 맞춰 메인 화면 로그와 OBS 오버레이를 실시간으로 순차 업데이트.
+- **다국어 용어집 & TSV/ZIP 팩**: 우선순위 기반 용어 등록 및 다국어 TSV/ZIP 용어집 팩 가져오기 지원.
+- **OBS 오버레이**: 배경 투명 자막 창을 OBS에 겹쳐서 표시하며 스타일 및 커스텀 CSS 설정 가능.
 
 ## 📦 설치 및 사용 방법 (일반 사용자용)
 
 1. **설치**
    배포된 설치 파일 (`.exe`)을 실행하여 설치합니다.
 
-2. **초기 설정 (음성 인식 및 번역 설정)**
-   번역 기능을 이용하려면, 화면 우측 상단의 「Settings」 버튼, 또는 메뉴바의 **File > Settings** 에서 설정을 수행합니다.
-   - **음성 인식 (Whisper)**
-     - **Provider**: `Local` (기본값), `Groq`, `OpenAI` 중에서 선택할 수 있습니다.
-     - **Groq/OpenAI**: API Key 설정이 필요합니다. 클라우드 ASR을 사용하면 PC에 부담을 주지 않고 `large-v3-turbo` 모델을 통한 고정밀 인식이 가능합니다.
+2. **초기 설정 (음성 인식・번역・용어집 설정)**
+   화면 우측 상단의 「Settings」 버튼 또는 메뉴바의 **File > Settings** 에서 설정을 수행합니다.
+   - **음성 인식 (Whisper 탭)**
+     - **ASR Provider**: `Local (whisper.cpp)`, `SenseVoice-Small (Local)`, `Groq API`, `OpenAI Compatible` 중에서 선택할 수 있습니다.
+     - **SenseVoice-Small (Local)**: API 키 없이 로컬 ONNX 추론을 실행합니다(최초 실행 시 INT8 모델 자동 다운로드).
+     - **Groq / OpenAI**: API Key 설정이 필요합니다. Groq 사용 시 **Rate Limit Fallback** 을 켜면 429 발생 시 로컬 SenseVoice-Small로 자동 폴백합니다.
 
-   - **번역 (LLM)**
+   - **번역 (LLM 탭)**
      - **Groq (권장)**
-       - **API Key**: [Groq Cloud Console](https://console.groq.com/keys) 에 접속하여 API Key를 생성하고 입력해 주세요.
-       - 빠르고 현재 무료 사용량이 넉넉하여 실시간 번역에 최적입니다.
-       - 모델 리로드 버튼으로, 현재 Groq에서 제공되는 모델 목록을 가져올 수 있습니다.
+       - **API Key**: [Groq Cloud Console](https://console.groq.com/keys) 에서 API Key를 생성하여 입력합니다.
+       - 빠르고 무료 사용량도 있어 실시간 번역에 최적입니다. 새로고침 버튼으로 사용 가능한 모델 목록을 가져올 수 있습니다.
+       - **Auto Fallback** 을 켜면 토큰 제한(429) 시 로컬 `PLaMo 3 Translate 0.8B` 로 번역을 이어갑니다.
+     - **PLaMo 3 Translate (Local WebGPU)**
+       - API 키 없이 완전 온디바이스(WebGPU)로 `plamo-3-translate-0.8b` 또는 `plamo-3-translate-2b` 를 실행할 수 있습니다.
+     - **OpenAI 호환 (OpenAI / Ollama / LM Studio / 원격 vLLM)**
+       - **OpenAI 사용 시**: API Key에 `sk-` 로 시작하는 키를 입력하고 Base URL은 비워둡니다.
+       - **Ollama / LM Studio / 원격 vLLM 사용 시**: Base URL에 서버 주소(예: `http://localhost:11434/v1` 또는 `http://localhost:1234/v1`)를 입력하고, 인증이 필요 없는 경우 API Key에 임의의 문자열을 입력합니다. Google Colab에서 PLaMo 3 Translate 8B를 구동하는 방법은 [docs/colab/README.md](docs/colab/README.md) 를 참조하세요.
+     - **Streaming Display**: 메인 화면 및 OBS 오버레이의 실시간 순차 표시 여부를 전환합니다(Groq / OpenAI 호환 / PLaMo Local 지원).
 
-     - **OpenAI API / 로컬 LLM**
-       - **Provider**: `OpenAI Compatible` 을 선택합니다.
-       - **OpenAI 사용 시**: API Key에 `sk-` 로 시작하는 키를 입력합니다. Base URL은 비워두셔도 됩니다.
-       - **Ollama / LM Studio 사용 시**:
-         - Base URL에 로컬 서버 주소 (예: `http://localhost:11434/v1` 또는 `http://localhost:1234/v1`) 를 입력합니다.
-         - API Key에는 `ollama` 등 임의의 문자열을 입력해 주세요.
+   - **용어집 (Glossary 탭)**
+     - 번역 방향・우선순위를 지정한 단어 등록 및 다국어 TSV/ZIP 용어집 팩 가져오기가 가능합니다.
 
 3. **받아쓰기 시작**
-   마이크를 선택하고 「Start」 버튼을 누르면 받아쓰기 및 번역이 시작됩니다.
+   **General** 탭에서 마이크를 선택(또는 기본값 사용)하고 「Start Recording」 버튼을 누르면 받아쓰기 및 번역이 시작됩니다.
 
 4. **OBS 표시**
-   OBS에서 「브라우저 소스 (Browser)」를 추가하고, URL에 `http://localhost:9000` 을 지정하면 자막이 배경 투명으로 표시됩니다.
+   OBS에서 「브라우저 소스 (Browser)」를 추가하고 URL에 `http://localhost:9000` 을 지정하면 자막이 배경 투명으로 표시됩니다.
 
 ### 📦 배포 패키지에 대하여
 
@@ -104,7 +109,7 @@ NVIDIA GPU를 탑재하고 있는 경우, CUDA 버전의 `whisper-server.exe` �
 
 ### 필수 요건
 
-- **Node.js**: v18 이상
+- **Node.js**: v20 이상 (v22 이상 권장)
 - **Visual Studio Build Tools 2022 (또는 2026)**
   - 워크로드: "Desktop development with C++" (C++를 사용한 데스크톱 개발)
 - **OpenVINO Toolkit**: 2025.0 이후
@@ -197,6 +202,21 @@ npm run make
 
 `package` 처리를 수행한 후, 추가로 인스톨러 (`setup.exe`) 를 생성합니다.
 빌드 설정 (`forge.config.ts`) 에 의해, 위에서 빌드한 `build/bin` 폴더 일체가 동봉됩니다.
+
+**테스트・Lint・품질 검사:**
+
+```bash
+# Vitest 단위 테스트 실행
+npm run test:unit
+
+# 타입 검사 / Lint / 포맷
+npx tsc --noEmit
+npm run lint
+npm run format
+
+# 번역 품질 평가 CLI
+npm run eval:translation -- --help
+```
 
 ---
 

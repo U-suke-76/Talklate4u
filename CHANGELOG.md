@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- docs: Updated `README.md`, `README.ja.md`, `README.ko.md`, `docs/design.md`, `docs/requirements.md`, and `docs/coding_guidelines.md` to reflect v0.1.0 features (SenseVoice-Small local ASR, PLaMo 3 Translate local WebGPU, Groq 429 fallback, streaming display, multilingual glossary packs, and refactored module layout).
 - refactor: Extracted shared Groq 429 exponential backoff and session-lock controller (`src/utils/RateLimitFallback.ts`) used by both `AsrService` and `TranslationService`, extracted glossary resolution into `src/services/glossary/GlossaryResolver.ts`, replaced `any` types in `OverlayServer.ts` with `Partial<OverlayStyles>`, and split `usePlamoLocal` (`src/hooks/usePlamoLocal.ts`) and `AppHeader` (`src/components/AppHeader.tsx`) out of `App.tsx`, with unit tests in `tests/unit/RateLimitFallback.test.ts`.
 
 ### Added

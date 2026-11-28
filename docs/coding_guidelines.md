@@ -23,7 +23,7 @@
 
 ### 設定ファイル
 
-- `.eslintrc.json`: ESLint 設定
+- `eslint.config.mjs`: ESLint v9 Flat Config 設定
 - `.prettierrc`: Prettier 設定
   - Tab width: 2
   - Semicolons: Always
@@ -69,9 +69,11 @@
 
 - `src/components`: UIコンポーネント
 - `src/hooks`: カスタムフック
-- `src/managers`: ビジネスロジック、状態管理クラス、シングルトンなど
-- `src/types`: 型定義 (必要に応じて共通の型を配置)
-- `src/utils`: ユーティリティ関数
+- `src/managers`: 設定管理・メニュー管理等のマネージャークラス
+- `src/server`: ローカルサーバー・ASRランタイム管理 (`AsrService`, `WhisperManager`, `SenseVoiceManager`, `OverlayServer`)
+- `src/services`: 翻訳パイプライン・モデルアダプター・用語集・Wllama推論エンジン
+- `src/types`: 型定義 (設定スキーマ `config.ts` 等)
+- `src/utils`: ユーティリティ関数・共通コントローラー (`RateLimitFallback.ts` 等)
 - `src/assets`: 画像、フォントなどの静的アセット
 
 ## 6. コメント
@@ -85,8 +87,8 @@
 ## 7. 開発プロセス
 
 1. **実装**: コードを変更する。
-2. **変更履歴の記載**: 変更内容を `CHANGELOG.md`（`[Unreleased]` セクション）に記載する。
+2. **変更履歴の記載**: 変更内容を `CHANGELOG.md`（`## [Unreleased]` セクション）に記載する。
 3. **フォーマット**: `npm run format` を実行する。
-4. **Lint**: `npm run lint` を実行し、エラーを修正する。
-5. **テスト**: 既存のテスト (`npm test`) が通ることを確認する (可能な範囲で)。
+4. **型チェック・Lint**: `npx tsc --noEmit` および `npm run lint` を実行し、エラーがないことを確認する。
+5. **テスト**: 単体テスト (`npm run test:unit`) および必要に応じて E2E テスト (`npm test`) が通ることを確認する。
 6. **コミット**: 変更内容を分かりやすくコミットメッセージに記述する。
