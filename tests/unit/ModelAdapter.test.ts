@@ -62,18 +62,18 @@ describe('ModelAdapter', () => {
   });
 
   describe('QwenAdapter', () => {
-    it('Groq では reasoning_effort: none を付与し、chat_template_kwargs は送らない', () => {
+    it('Groq では /no_think を付けず reasoning_effort: none のみを付与し、chat_template_kwargs は送らない', () => {
       const adapter = new QwenAdapter('groq');
       const payload = adapter.buildRequest(baseInput);
-      expect(payload.messages[0].content.startsWith('/no_think\n')).toBe(true);
+      expect(payload.messages[0].content.startsWith('/no_think')).toBe(false);
       expect(payload.chat_template_kwargs).toBeUndefined();
       expect(payload.extraBody).toEqual({ reasoning_effort: 'none' });
     });
 
-    it('OpenAI 互換では chat_template_kwargs.enable_thinking: false を付与する', () => {
+    it('OpenAI 互換では /no_think を付けず chat_template_kwargs.enable_thinking: false を付与する', () => {
       const adapter = new QwenAdapter('openai');
       const payload = adapter.buildRequest(baseInput);
-      expect(payload.messages[0].content.startsWith('/no_think\n')).toBe(true);
+      expect(payload.messages[0].content.startsWith('/no_think')).toBe(false);
       expect(payload.chat_template_kwargs).toEqual({ enable_thinking: false });
       expect(payload.extraBody).toBeUndefined();
     });

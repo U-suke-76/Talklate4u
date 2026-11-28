@@ -157,9 +157,11 @@ export class PlamoAdapter implements IModelAdapter {
 
 /**
  * 2. Qwen Adapter (Qwen 2.5 / Qwen 3)
- * Suppresses thinking mode via `/no_think` directive, API-level options
- * (`reasoning_effort: 'none'` on Groq, `chat_template_kwargs: { enable_thinking: false }`
- * on OpenAI-compatible servers), and strips residual `<think>` blocks.
+ * Suppresses thinking mode via API-level options (`reasoning_effort: 'none'` on Groq,
+ * `chat_template_kwargs: { enable_thinking: false }` on OpenAI-compatible servers)
+ * and strips residual `<think>` blocks.
+ * Note: `/no_think` is intentionally omitted because it can degrade translation quality
+ * (e.g. source-language leakage on Qwen3).
  */
 export class QwenAdapter implements IModelAdapter {
   public readonly family = 'qwen' as const;
@@ -167,12 +169,8 @@ export class QwenAdapter implements IModelAdapter {
   public constructor(private readonly provider: 'groq' | 'openai' = 'openai') {}
 
   public buildRequest(input: AdapterInput): AdapterRequestPayload {
-    const noThinkSystemPrompt = input.systemPrompt.startsWith('/no_think')
-      ? input.systemPrompt
-      : `/no_think\n${input.systemPrompt}`;
-
     const payload: AdapterRequestPayload = {
-      messages: buildMultiTurnMessages(noThinkSystemPrompt, input.history, input.text),
+      messages: buildMultiTurnMessages(input.systemPrompt, input.history, input.text),
     };
 
     if (this.provider === 'groq') {

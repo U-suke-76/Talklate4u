@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- fix: Removed `/no_think` directive from `QwenAdapter` across both Groq and OpenAI-compatible providers, relying on API-level thinking suppression (`reasoning_effort: 'none'` / `chat_template_kwargs: { enable_thinking: false }`) and `<think>` stripping to avoid translation quality degradation (source-language leakage) (`src/services/adapters/ModelAdapter.ts`, `tests/unit/ModelAdapter.test.ts`).
+
 - fix: Fixed `WllamaEngine` default WASM URL (`/wllama/single-thread/wllama.wasm` -> `./wllama.wasm` via `new URL('./wllama.wasm', window.location.href).href`) to match the Vite static copy output and added automatic `useCache: false` fallback when Windows OPFS cache throws `removeEntry` / `NoModificationAllowedError` (`src/services/wllama/WllamaEngine.ts`).
 - fix: Preload the PLaMo Local WebGPU model immediately when switching to `plamo-local` in Settings, display a header status badge (`PLaMo Loading...` / `PLaMo Ready` / `PLaMo Error`), and forward download/load progress and inference errors from the renderer to the main process log (`src/App.tsx`).
 - fix: `PlamoAdapter` now has `local` / `remote` modes. For remote OpenAI-compatible servers (e.g., Colab vLLM) it sends only the user message with options in `chat_template_kwargs`, because the official PLaMo 3 Translate chat template rejects `system` messages. Local WebGPU behavior is unchanged.
