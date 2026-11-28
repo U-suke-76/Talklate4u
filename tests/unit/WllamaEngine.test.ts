@@ -8,13 +8,15 @@ const mockExit = vi.fn();
 
 vi.mock('@wllama/wllama', () => {
   return {
-    Wllama: vi.fn().mockImplementation(() => ({
-      loadModelFromHF: mockLoadModelFromHF,
-      loadModelFromUrl: mockLoadModelFromUrl,
-      createChatCompletion: mockCreateChatCompletion,
-      createCompletion: mockCreateCompletion,
-      exit: mockExit,
-    })),
+    Wllama: vi.fn().mockImplementation(function () {
+      return {
+        loadModelFromHF: mockLoadModelFromHF,
+        loadModelFromUrl: mockLoadModelFromUrl,
+        createChatCompletion: mockCreateChatCompletion,
+        createCompletion: mockCreateCompletion,
+        exit: mockExit,
+      };
+    }),
   };
 });
 

@@ -7,7 +7,7 @@ import { MakerRpm } from '@electron-forge/maker-rpm';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
-import { PublisherGithub } from '@electron-forge/publisher-github';
+import { PublisherGitHub } from '@electron-forge/publisher-github';
 // import * as fs from 'fs';
 // import * as path from 'path';
 // import { execSync } from 'child_process';
@@ -23,9 +23,9 @@ const config: ForgeConfig = {
     ],
     icon: 'assets/icon.ico',
     afterExtract: [
-      (buildPath, electronVersion, platform, arch, callback) => {
-        const fs = require('fs');
-        const path = require('path');
+      async ({ buildPath }) => {
+        const fs = await import('fs');
+        const path = await import('path');
         const localesPath = path.join(buildPath, 'locales');
         if (fs.existsSync(localesPath)) {
           const files = fs.readdirSync(localesPath);
@@ -42,7 +42,6 @@ const config: ForgeConfig = {
             }
           }
         }
-        callback();
       },
     ],
   },
@@ -59,7 +58,7 @@ const config: ForgeConfig = {
     new MakerDeb({}),
   ],
   publishers: [
-    new PublisherGithub({
+    new PublisherGitHub({
       repository: {
         owner: 'U-suke-76',
         name: 'Talklate4u',
