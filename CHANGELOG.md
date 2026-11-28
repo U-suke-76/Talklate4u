@@ -36,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - refactor: Separated LLM transport providers (`plamo-local` WebGPU / `groq` / `openai`) from model-family adapters (`ModelAdapter.ts`: `PlamoAdapter`, `QwenAdapter`, `GemmaAdapter`, `GptOssAdapter`, `StandardChatAdapter`), unifying local WebGPU (`WllamaEngine.ts`) and remote OpenAI-compatible servers (e.g. Bionic / LM Studio / Google Colab `llama-server`) into a single adapter-driven pipeline.
 - fix: Normalized OpenAI-compatible ASR and LLM `baseUrl` endpoints (`/v1/models`, `/v1/audio/transcriptions`, `/v1/chat/completions`) in `WhisperManager.ts` and `TranslationService.ts`.
 
+### Security
+
+- chore: Updated transitive and runtime dependencies via `npm audit fix` (`electron`, `body-parser`, `follow-redirects`, `undici`, `zod`, `fast-uri`, `qs`), reducing reported vulnerabilities from 74 to 39.
+
 ### Fixed
 
 - fix: Removed `/no_think` directive from `QwenAdapter` across both Groq and OpenAI-compatible providers, relying on API-level thinking suppression (`reasoning_effort: 'none'` / `chat_template_kwargs: { enable_thinking: false }`) and `<think>` stripping to avoid translation quality degradation (source-language leakage) (`src/services/adapters/ModelAdapter.ts`, `tests/unit/ModelAdapter.test.ts`).
