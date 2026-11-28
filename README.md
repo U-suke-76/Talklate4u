@@ -1,41 +1,46 @@
 # Talklate4u
 
 Real-time speech recognition & translation application with OBS overlay support.
-Combines local Whisper (OpenVINO optimized) for fast transcription and LLMs (Groq, OpenAI, etc.) for high-accuracy translation, allowing you to display subtitles on your streaming screen.
+Combines local ASR (Whisper OpenVINO/CUDA or SenseVoice-Small ONNX) and cloud ASR (Groq, OpenAI) with local WebGPU translation (PLaMo 3 Translate) and cloud LLMs (Groq, OpenAI-compatible APIs), allowing you to display streaming subtitles on your streaming screen.
 
 ## 🌟 Key Features
 
-- **Real-time Transcription**: Fast and accurate speech recognition using Whisper.cpp.
-- **Auto Translation**: Instant translation of recognized text using LLMs (Groq, OpenAI API).
-- **OBS Overlay**: Display subtitles on OBS with a transparent background window.
-- **OpenVINO Optimization**: High-speed inference utilizing Intel CPU/GPU.
+- **Flexible Speech Recognition (ASR)**: Supports local `whisper.cpp` (CPU / OpenVINO / CUDA), **SenseVoice-Small (Local ONNX via `sherpa-onnx-node`)**, and Cloud ASR (Groq / OpenAI).
+- **Multi-Provider Translation (LLM)**: Supports **Groq**, **OpenAI Compatible** (OpenAI, Ollama, LM Studio, vLLM, etc.), and **PLaMo 3 Translate (Local WebGPU: `0.8B` / `2B`)**.
+- **Automatic Rate-Limit Fallback**: When Groq hits HTTP 429, automatically falls back to local models (`Groq Whisper -> SenseVoice-Small`, `Groq LLM -> PLaMo 3 Translate 0.8B`) with exponential backoff (`60s -> 120s`) and session lock after 3 consecutive 429s.
+- **Streaming Subtitle Display**: Real-time progressive translation output on both the main log view and the OBS overlay.
+- **Multilingual Glossary & TSV/ZIP Packs**: Register custom term pairs with priority ordering, or import multilingual TSV/ZIP glossary packs.
+- **OBS Overlay**: Display subtitles on OBS with a transparent background window and customizable styles / custom CSS.
 
 ## 📦 Installation and Usage (For General Users)
 
 1. **Installation**
    Run the distributed installer (`.exe`) to install the application.
 
-2. **Initial Setup (ASR & Translation Settings)**
-   To use the translation feature, click the "Settings" button in the top right corner or go to **File > Settings** in the menu bar.
-   - **Speech Recognition (Whisper)**
-     - **Provider**: Select `Local` (default), `Groq`, or `OpenAI`.
-     - **Groq/OpenAI**: Requires an API Key. Cloud ASR allows for high-accuracy recognition using the `large-v3-turbo` model without burdening your PC.
+2. **Initial Setup (ASR, Translation & Glossary Settings)**
+   Click the "Settings" button in the top right corner or go to **File > Settings** in the menu bar.
+   - **Speech Recognition (Whisper tab)**
+     - **ASR Provider**: Choose from `Local (whisper.cpp)`, `SenseVoice-Small (Local)`, `Groq API`, or `OpenAI Compatible`.
+     - **SenseVoice-Small (Local)**: Runs locally via ONNX without requiring an API Key (auto-downloads the INT8 model on first start).
+     - **Groq / OpenAI**: Requires an API Key. Groq supports `Rate Limit Fallback`, which automatically switches to local SenseVoice-Small on HTTP 429 and retries Groq after cooldown.
 
-   - **Translation (LLM)**
+   - **Translation (LLM tab)**
      - **Groq (Recommended)**
        - **API Key**: Access the [Groq Cloud Console](https://console.groq.com/keys) to create an API Key and enter it.
-       - It is fast and currently offers a generous free tier, making it ideal for real-time translation.
-       - Use the reload button to fetch the list of models currently available on Groq.
+       - Fast inference with a free tier, ideal for real-time translation. Use the reload button to fetch available models.
+       - Enable **Auto Fallback** to continue translating locally with `PLaMo 3 Translate 0.8B` when Groq hits rate limits (429).
+     - **PLaMo 3 Translate (Local WebGPU)**
+       - Runs on-device translation via WebGPU (`plamo-3-translate-0.8b` or `plamo-3-translate-2b`) with no API key required.
+     - **OpenAI Compatible (OpenAI / Ollama / LM Studio / Remote vLLM)**
+       - **Using OpenAI**: Enter your key starting with `sk-` in API Key and leave Base URL blank.
+       - **Using Ollama / LM Studio / Remote vLLM**: Enter the server endpoint in Base URL (e.g., `http://localhost:11434/v1` or `http://localhost:1234/v1`) and any non-empty string in API Key if no auth is required. For running PLaMo 3 Translate 8B on Google Colab, see [docs/colab/README.md](docs/colab/README.md).
+     - **Streaming Display**: Toggle real-time progressive text display on the main screen and OBS overlay (supported across Groq, OpenAI Compatible, and PLaMo Local).
 
-     - **OpenAI API / Local LLM**
-       - **Provider**: Select `OpenAI Compatible`.
-       - **Using OpenAI**: Enter your key starting with `sk-` in the API Key field. Leave the Base URL blank.
-       - **Using Ollama / LM Studio**:
-         - Enter your local server address in the Base URL (e.g., `http://localhost:11434/v1` or `http://localhost:1234/v1`).
-         - Enter any string (e.g., `ollama`) in the API Key field.
+   - **Glossary (Glossary tab)**
+     - Add custom word/phrase pairs with language direction and priority, or import multilingual TSV/ZIP glossary packs.
 
 3. **Start Transcription**
-   Select your microphone and press the "Start" button to begin transcription and translation.
+   Select your microphone in **General** settings (or use default) and press **Start Recording** to begin transcription and translation.
 
 4. **Displaying in OBS**
    Add a "Browser" source in OBS and set the URL to `http://localhost:9000`. The subtitles will appear with a transparent background.
@@ -104,7 +109,7 @@ Note that the `whisper-server.exe` binary is not included in the npm package and
 
 ### Prerequisites
 
-- **Node.js**: v18 or later
+- **Node.js**: v20 or later (v22+ recommended)
 - **Visual Studio Build Tools 2022 (or 2026)**
   - Workload: "Desktop development with C++"
 - **OpenVINO Toolkit**: 2025.0 or later
@@ -197,3 +202,31 @@ npm run make
 
 After performing `package`, creates an installer (`setup.exe`).
 The build settings (`forge.config.ts`) ensure the `build/bin` folder built above is included.
+
+**Testing, Linting & Quality Checks:**
+
+```bash
+# Run Vitest unit tests
+npm run test:unit
+
+# Type check, lint, and format
+npx tsc --noEmit
+npm run lint
+npm run format
+
+# Evaluate translation quality against transcripts
+npm run eval:translation -- --help
+```
+
+---
+
+## 📄 License & Acknowledgements
+
+### 🌟 AI Models & Attribution (Built with PLaMo)
+
+- The local WebGPU translation engine integrates translation-specialized models developed and published by **Preferred Networks, Inc. (PFN)**:
+  - **Attribution**: **Built with PLaMo**
+  - **Models**: `plamo-3-translate-0.8b` / `plamo-3-translate-2b`
+  - **License**: Usage of these models is subject to the [PLaMo Community License](https://plamo.preferredai.jp/info/plamo-community-license-en) ([Japanese](https://plamo.preferredai.jp/info/plamo-community-license-ja)).
+- On-device WebGPU inference runtime is powered by [Wllama](https://github.com/ngxson/wllama).
+- The source code of this application is released under the MIT License.

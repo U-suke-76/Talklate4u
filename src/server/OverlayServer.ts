@@ -1,22 +1,21 @@
 import express from 'express';
 import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
+import type { OverlayStyles } from '../types/config';
 
 export class OverlayServer {
   private app: express.Express;
   private httpServer: HttpServer | null = null;
   private io: SocketIOServer | null = null;
   private port: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private currentStyles: any = {};
+  private currentStyles: Partial<OverlayStyles> = {};
 
   constructor(port = 3000) {
     this.app = express();
     this.port = port;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  start(staticPath: string, initialStyles: any = {}) {
+  start(staticPath: string, initialStyles: Partial<OverlayStyles> = {}) {
     this.currentStyles = initialStyles;
     // Serve static files (HTML, CSS, JS) from the overlay directory
     this.app.use(express.static(staticPath));
@@ -44,8 +43,7 @@ export class OverlayServer {
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  updateStyles(styles: any) {
+  updateStyles(styles: Partial<OverlayStyles>) {
     this.currentStyles = styles;
     this.broadcast('style_update', styles);
   }

@@ -1,59 +1,8 @@
 import React from 'react';
+import { DEFAULT_CUSTOM_CSS, OverlayStyles } from '../types/config';
 
-export const DEFAULT_CUSTOM_CSS = `/* Custom Subtitle Styles */
-.subtitle-line {
-  box-shadow: none;
-  padding: 0;
-  margin-bottom: 5px;
-  width: 100%;
-  text-align: left;
-  opacity: 0;
-  transform: translateY(20px);
-  animation: fadeInUp 0.5s forwards;
-  max-height: 500px;
-  overflow: hidden;
-}
-
-.subtitle-content {
-  background-color: transparent;
-  color: #ffffff;
-  -webkit-text-stroke: 3px #000000;
-  paint-order: stroke fill;
-  padding: 5px 10px 5px 30px;
-  border-radius: 4px;
-  display: inline-block;
-  font-size: 16px;
-  font-weight: 800;
-}
-
-.dst-text {
-  color: #38bdf8;
-  -webkit-text-stroke: 3px #0c4a6e;
-}
-
-/* Custom Fade Out Animation */
-.subtitle-line.fade-out {
-  animation: fadeOut 0.2s forwards;
-}
-
-@keyframes fadeInUp {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeOut {
-  to {
-    opacity: 0;
-    transform: translateY(-20px);
-    max-height: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-    margin-bottom: 0;
-  }
-}
-`;
+export { DEFAULT_CUSTOM_CSS };
+export type { OverlayStyles };
 
 export const generateCustomCSSFromStyles = (styles: OverlayStyles): string => {
   return `/* Custom Subtitle Styles */
@@ -111,22 +60,6 @@ export const generateCustomCSSFromStyles = (styles: OverlayStyles): string => {
 }
 `;
 };
-
-// Define the styles interface compatible with ConfigManager
-export interface OverlayStyles {
-  align: 'left' | 'center' | 'right';
-  fontSize: number;
-  originalColor: string;
-  originalStrokeColor: string;
-  translatedColor: string;
-  translatedStrokeColor: string;
-  backgroundColor: string;
-  displayFormat: string;
-  maxLines: number;
-  fadeTimeout: number;
-  useCustomCSS: boolean;
-  customCSS: string;
-}
 
 interface OverlaySettingsProps {
   styles: OverlayStyles;

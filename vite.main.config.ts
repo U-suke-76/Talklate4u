@@ -27,6 +27,7 @@ export default defineConfig({
       external: [
         'electron',
         'nodejs-whisper',
+        'sherpa-onnx-node',
         'onnxruntime-web',
         'bufferutil',
         'utf-8-validate',

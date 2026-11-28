@@ -10,8 +10,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWhisperModels: () => ipcRenderer.invoke('get-whisper-models'),
 
   // Translation
-  translateText: (text: string, detectedLanguage?: string) =>
-    ipcRenderer.invoke('translate-text', text, detectedLanguage),
+  translateText: (text: string, detectedLanguage?: string, logId?: number) =>
+    ipcRenderer.invoke('translate-text', text, detectedLanguage, logId),
+  onTranslationPartial: (callback: (payload: { logId: number; text: string }) => void) => {
+    ipcRenderer.removeAllListeners('translation-partial');
+    ipcRenderer.on('translation-partial', (_event, payload) => callback(payload));
+  },
   getGroqModels: (apiKey: string) => ipcRenderer.invoke('get-groq-models', apiKey),
 
   // Config
@@ -28,6 +32,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onOpenSettings: (callback: () => void) => {
     ipcRenderer.on('open-settings', () => callback());
   },
+  onPlamoTranslateRequest: (
+    callback: (payload: {
+      requestId: string;
+      model: string;
+      messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+      stop?: string[];
+      chat_template_kwargs?: Record<string, unknown>;
+      fallbackPrompt?: string;
+      temperature?: number;
+      stream?: boolean;
+    }) => void,
+  ) => {
+    ipcRenderer.removeAllListeners('plamo-translate-request');
+    ipcRenderer.on('plamo-translate-request', (_event, payload) => callback(payload));
+  },
+  sendPlamoTranslateChunk: (payload: { requestId: string; delta: string }) =>
+    ipcRenderer.send('plamo-translate-chunk', payload),
+  sendPlamoTranslateResult: (payload: { requestId: string; text?: string; error?: string }) =>
+    ipcRenderer.send('plamo-translate-result', payload),
+  sendDownloadProgress: (progress: string) =>
+    ipcRenderer.send('download-progress-from-renderer', progress),
 
   // Debugging
   log: (message: string) => ipcRenderer.send('renderer-log', message),

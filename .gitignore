@@ -99,6 +99,7 @@ vad.bundle.min.js
 ort.all.min.js
 *.wasm
 *.onnx
+models/
 
 # Backup / Legacy
 old/

@@ -9,6 +9,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-28
+
+### Changed
+
+- docs: Updated `README.md`, `README.ja.md`, `README.ko.md`, `docs/design.md`, `docs/requirements.md`, and `docs/coding_guidelines.md` to reflect v0.1.0 features (SenseVoice-Small local ASR, PLaMo 3 Translate local WebGPU, Groq 429 fallback, streaming display, multilingual glossary packs, and refactored module layout).
+- refactor: Extracted shared Groq 429 exponential backoff and session-lock controller (`src/utils/RateLimitFallback.ts`) used by both `AsrService` and `TranslationService`, extracted glossary resolution into `src/services/glossary/GlossaryResolver.ts`, replaced `any` types in `OverlayServer.ts` with `Partial<OverlayStyles>`, and split `usePlamoLocal` (`src/hooks/usePlamoLocal.ts`) and `AppHeader` (`src/components/AppHeader.tsx`) out of `App.tsx`, with unit tests in `tests/unit/RateLimitFallback.test.ts`.
+
+### Added
+
+- fix: Serialized concurrent `PlamoLocalService.execute()` requests via an execution queue (`WllamaEngine.ts`) to prevent WebGPU / Wllama inference hangs when multiple utterances arrive simultaneously (e.g., during rapid speech or Groq 429 fallback), and added unmount cleanup in `useVAD.ts` to destroy `MicVAD` and prevent duplicate VAD instances on hot reload.
+- ui: Updated the main header ASR status badge in `App.tsx` to display the active ASR provider name (`SenseVoice Ready`, `Groq Whisper Ready`, `OpenAI Whisper Ready`, or `Whisper Ready`) instead of a hardcoded `Whisper Ready` label, added a `SenseVoice Standby` / `SenseVoice Loading...` / `SenseVoice Error` badge when Groq Whisper fallback to SenseVoice-Small is enabled (`AsrService.ts`, `electron.d.ts`, `useServerStatus.ts`, `App.tsx`), and aligned offline system log messages in `useServerStatus.ts` to `ASR Server`.
+- feat: Added automatic fallback from Groq Whisper to local SenseVoice-Small (`whisper.fallbackToSenseVoice`) on rate limits (429), with background preloading, exponential backoff cooldown (60s -> 120s), and session-long lock after 3 consecutive 429s (`AsrService.ts`, `WhisperManager.ts`, `config.ts`, `WhisperSettingsTab.tsx`, `tests/unit/AsrServiceFallback.test.ts`).
+- feat: Extended streaming translation display (`translation.streamingDisplay`) to local WebGPU `plamo-local` (including Groq 429 fallback) via `@wllama/wllama` `stream: true` + `onData` and `plamo-translate-chunk` IPC, and added live partial translation streaming to the main window `LogViewer` via `translation-partial` IPC (`WllamaEngine.ts`, `main.ts`, `preload.ts`, `electron.d.ts`, `App.tsx`, `useSpeechTranslation.ts`, `TranslationService.ts`, `LlmSettingsTab.tsx`, `tests/unit/WllamaEngine.test.ts`).
+- fix: Destroy `MicVAD` instance on `stopVAD()` (`src/hooks/useVAD.ts`) instead of only pausing, preventing microphone `MediaStream` / `AudioContext` leaks when restarting VAD after saving settings.
+- feat: Added automatic fallback to local PLaMo 3 Translate 0.8B (`llm.fallbackToPlamoLocal`) when Groq hits rate limits (429), with startup preloading (`PLaMo Standby`), exponential backoff cooldown (60s -> 120s), and session-long lock to PLaMo after 3 consecutive 429s (`TranslationService.ts`, `App.tsx`, `config.ts`, `LlmSettingsTab.tsx`, `tests/unit/TranslationServiceFallback.test.ts`).
+- feat: Added streaming translation display (`translation.streamingDisplay`, 50ms throttled OBS overlay updates via `stream: true`) with adapter-level partial output sanitization (`cleanPartialOutput`) and API-level thinking suppression (`extraBody: { reasoning_effort: 'none' }` for Groq Qwen3, `reasoning_effort: 'low'` for Groq GPT-OSS, `chat_template_kwargs: { enable_thinking: false }` for OpenAI-compatible Qwen3) across `ModelAdapter.ts`, `TranslationService.ts`, `config.ts`, and `LlmSettingsTab.tsx`.
+- feat: Added automatic post-startup warmup request to `docs/colab/serve_plamo.py` so the first real translation avoids the initial ~3.5s cold-start latency.
+- feat: Added translation quality evaluation CLI (`scripts/eval-translation.ts`, `npm run eval:translation`) supporting YouTube transcripts (`.txt`, `.vtt`, `.srt`), external TSV/ZIP glossaries (`TsvGlossaryPack`), and all `ModelAdapter` families including PLaMo 3 Translate (`PlamoAdapter` remote mode via OpenAI-compatible/vLLM endpoints) and Groq, with Markdown/CSV report output and unit tests (`tests/unit/evalTranslation.test.ts`).
+- feat: Added multilingual glossary pack import (ZIP bundling multiple TSV files, or plain TSV; `pos\tja\ten\tko\tzh`, slash-separated aliases) to the Glossary settings tab with per-pack enable/disable and delete. ZIP extraction uses the lightweight `fflate` library. Packs are stored in `config.glossaryPacks`, and only terms found in each utterance are injected into LLM prompts via a longest-first, non-overlapping matcher with Hangul/ASCII word-boundary guards (`src/services/glossary/TsvGlossaryPack.ts`, `TranslationService.ts`, `GlossarySettings.tsx`).
+- docs: Consolidated agent rules from `.agent/rules/target.md` into root `AGENTS.md`, adding unit test (`npm run test:unit`), OSS glossary privacy, and `git push` safety guidelines.
+- docs: Added agent skills `.agent/skills/release-check/SKILL.md` and `.agent/skills/add-model-adapter/SKILL.md`.
+- test: Added unit tests for `WllamaEngine` and `PlamoLocalService` (`tests/unit/WllamaEngine.test.ts`) covering default OPFS cache loading, `NoModificationAllowedError`/`removeEntry` fallback to `useCache=false`, non-OPFS error propagation, engine reuse, model switching (`0.8b` -> `2b`), and `fallbackPrompt` execution.
+- test: Added Vitest unit test suite (`vitest.config.ts`, `npm run test:unit`) covering `ModelAdapter`, `plamoPrompt`, `PromptFactory`, and `detectLanguage` (`tests/unit/`).
+
+- docs: Added Colab CLI launcher (`docs/colab/start_colab_plamo.sh`) and vLLM server script (`docs/colab/serve_plamo.py`) defaulting to T4 GPU with `pfnet/plamo-3-translate-8b-W4A16`, single-session OpenSSH `ProxyCommand` local port forwarding with live `uv`/`pip` install output, optional Google Drive cache (`USE_DRIVE_CACHE=1`), and verified `colab stop` cleanup; updated `docs/colab/README.md` to use Colab CLI as the primary setup while keeping the browser notebook as a fallback (verified end-to-end on Colab T4 + vLLM 0.34.0).
+- docs: Added Google Colab notebook (`docs/colab/plamo3_translate_server.ipynb`) that serves PLaMo 3 Translate 8B as an OpenAI-compatible vLLM server behind a Cloudflare quick tunnel with a generated API key, for manual personal use via the existing `openai` provider (custom Base URL).
+- docs: Added `docs/colab/README.md` with setup, usage, shutdown, and troubleshooting steps for the Colab PLaMo 3 Translate server.
+- feat: Added local SenseVoice-Small ASR engine (`SenseVoiceManager.ts`) powered by `sherpa-onnx-node` with automatic Hugging Face INT8 model download, non-speech/noise event filtering (`<|nospeech|>`, `Breath`, `Cough`, `BGM`, `Speech_Noise`, short filler/Chinese noise guard), and Japanese intra-sentence space removal.
+- feat: Added local PLaMo 3 Translate (0.8B / 2B) WebGPU translation engine (`WllamaEngine.ts`, `src/services/adapters/plamoPrompt.ts`) powered by `@wllama/wllama@3.13.0` with repetition loop removal, short-input hallucination guards, and native PFML3 `context` (recent conversation history) and `glossary` integration.
+- ui: Added `SenseVoice-Small` ASR provider and `PLaMo 3 Translate (Local WebGPU)` LLM provider options in `SettingsModal.tsx`.
+- docs: Added `Built with PLaMo` attribution and PLaMo Community License notices to `SettingsModal.tsx`, `App.tsx`, `README.md`, `README.ja.md`, and `README.ko.md`.
+- docs: Added Architecture Principles (strict separation between LLM Transport Providers and Model-Family Adapters) to `.agent/rules/target.md`.
+- refactor: Centralized configuration schemas, TypeScript types, and default values in `src/types/config.ts` and strengthened IPC type definitions in `src/electron.d.ts`.
+- refactor: Split `SettingsModal.tsx` into modular tab components (`src/components/settings/GeneralSettingsTab.tsx`, `WhisperSettingsTab.tsx`, `LlmSettingsTab.tsx`, `VadSettingsTab.tsx`).
+- refactor: Extracted streaming file download logic with `.part` file handling into `src/utils/FileDownloader.ts` and unified `WhisperManager` and `SenseVoiceManager` behind `src/server/AsrService.ts`.
+- refactor: Unified directional glossary matching and target language code resolution across `PromptFactory.ts` and `TranslationService.ts`.
+- refactor: Separated LLM transport providers (`plamo-local` WebGPU / `groq` / `openai`) from model-family adapters (`ModelAdapter.ts`: `PlamoAdapter`, `QwenAdapter`, `GemmaAdapter`, `GptOssAdapter`, `StandardChatAdapter`), unifying local WebGPU (`WllamaEngine.ts`) and remote OpenAI-compatible servers (e.g. Bionic / LM Studio / Google Colab `llama-server`) into a single adapter-driven pipeline.
+- fix: Normalized OpenAI-compatible ASR and LLM `baseUrl` endpoints (`/v1/models`, `/v1/audio/transcriptions`, `/v1/chat/completions`) in `WhisperManager.ts` and `TranslationService.ts`.
+
+### Security
+
+- chore: Migrated ESLint to v9 Flat Config (`eslint.config.mjs`) with `@typescript-eslint` v8 and aligned `typescript` to `^6.0.x` (`package.json`, `package-lock.json`, `eslint.config.mjs`).
+- chore: Upgraded `typescript` to `^7.0.2` and `jimp` to `^2.2.1` (`package.json`, `package-lock.json`).
+- chore: Upgraded `react` / `react-dom` (+ `@types`) to `v19`, `electron-store` to `^12.0.0`, and `dotenv` to `^18.0.10` (`package.json`, `package-lock.json`).
+- chore: Upgraded `openai` SDK to `^7.65.0` (`package.json`, `package-lock.json`).
+- perf: Upgraded `@wllama/wllama` to `4.0.0` for improved local PLaMo 3 Translate WebGPU inference performance, and added `rename: { stripBase: true }` to `viteStaticCopy` targets in `vite.renderer.config.ts` for `vite-plugin-static-copy` v4 compatibility (`package.json`, `package-lock.json`, `vite.renderer.config.ts`).
+- chore: Updated minor and patch dependencies via `npm update` (`axios`, `onnxruntime-web`, `sherpa-onnx-node`, `tailwindcss`, `daisyui`, `prettier`, `playwright`, etc.) (`package-lock.json`).
+- chore: Upgraded `electron` to `^45.5.0` (Chromium 156 / Node.js 24.22) (`package.json`, `package-lock.json`).
+- chore: Upgraded `@electron-forge/*` to `v8.0.1`, `@electron/fuses` to `v2`, `vite` to `v8.4.0`, `vitest` to `v5.1.2`, `@vitejs/plugin-react` to `v6.3.0`, and `vite-plugin-static-copy` to `v4.1.1`, resolving all remaining `npm audit` vulnerabilities (`0 vulnerabilities`). Updated `forge.config.ts` (`PublisherGitHub` export name and `@electron/packager` v21 `afterExtract` hook signature) and `tests/unit/WllamaEngine.test.ts` (Vitest 5 constructor mock syntax).
+- chore: Updated `nodejs-whisper` to `0.4.1` to address GHSA-2f48-3555-fpx6 (`package.json`, `package-lock.json`).
+- chore: Updated transitive and runtime dependencies via `npm audit fix` (`electron`, `body-parser`, `follow-redirects`, `undici`, `zod`, `fast-uri`, `qs`), reducing reported vulnerabilities from 74 to 39.
+
+### Fixed
+
+- fix: Removed `/no_think` directive from `QwenAdapter` across both Groq and OpenAI-compatible providers, relying on API-level thinking suppression (`reasoning_effort: 'none'` / `chat_template_kwargs: { enable_thinking: false }`) and `<think>` stripping to avoid translation quality degradation (source-language leakage) (`src/services/adapters/ModelAdapter.ts`, `tests/unit/ModelAdapter.test.ts`).
+
+- fix: Fixed `WllamaEngine` default WASM URL (`/wllama/single-thread/wllama.wasm` -> `./wllama.wasm` via `new URL('./wllama.wasm', window.location.href).href`) to match the Vite static copy output and added automatic `useCache: false` fallback when Windows OPFS cache throws `removeEntry` / `NoModificationAllowedError` (`src/services/wllama/WllamaEngine.ts`).
+- fix: Preload the PLaMo Local WebGPU model immediately when switching to `plamo-local` in Settings, display a header status badge (`PLaMo Loading...` / `PLaMo Ready` / `PLaMo Error`), and forward download/load progress and inference errors from the renderer to the main process log (`src/App.tsx`).
+- fix: `PlamoAdapter` now has `local` / `remote` modes. For remote OpenAI-compatible servers (e.g., Colab vLLM) it sends only the user message with options in `chat_template_kwargs`, because the official PLaMo 3 Translate chat template rejects `system` messages. Local WebGPU behavior is unchanged.
+- docs: Made `HF_TOKEN` optional in the Colab PLaMo 3 Translate notebook and README (previously the notebook failed when the secret was not registered).
+- docs: Confirmed via Hugging Face API that `pfnet/plamo-3-translate-8b` is not gated (no `HF_TOKEN` needed) and documented that its chat template rejects `system` messages.
+
 ## [0.0.6] - 2026-10-17
 
 ### Added

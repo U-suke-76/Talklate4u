@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { PlamoLocalService } from '../services/wllama/WllamaEngine';
 
 export interface ServerStatusResult {
   success: boolean;
   isDownloading?: boolean;
   progress?: string;
   configIssues?: string[];
+  fallbackSenseVoiceStatus?: 'idle' | 'loading' | 'ready' | 'error';
 }
 
 export interface OverlayStatusResult {
@@ -19,12 +21,16 @@ export function useServerStatus(
   statusText: string, // We might need the current value for checking "Downloading" state if logic depends on it, but here it depends on `res.isDownloading`.
 ) {
   const [serverStatus, setServerStatus] = useState(false);
+  const [fallbackSenseVoiceStatus, setFallbackSenseVoiceStatus] = useState<
+    'idle' | 'loading' | 'ready' | 'error'
+  >('idle');
   const [overlayStatus, setOverlayStatus] = useState<OverlayStatusResult | null>(null);
   const lastServerStatus = useRef<boolean | null>(null);
 
   const checkServer = useCallback(async () => {
-    const res = (await window.electronAPI.checkWhisperStatus()) as ServerStatusResult;
+    const res = await window.electronAPI.checkWhisperStatus();
     setServerStatus(res.success);
+    setFallbackSenseVoiceStatus(res.fallbackSenseVoiceStatus ?? 'idle');
 
     // Check overlay status
     const overlayRes = await window.electronAPI.checkOverlayStatus();
@@ -32,8 +38,11 @@ export function useServerStatus(
 
     // If downloading, update statusText to show progress
     // If NOT downloading, show Ready/Offline status
+    const plamoStatus = PlamoLocalService.getInstance().getStatus();
     if (res.isDownloading && res.progress) {
       setStatusText(res.progress);
+    } else if (plamoStatus.loading && plamoStatus.progress) {
+      setStatusText(plamoStatus.progress);
     } else {
       // Check if we are currently showing a "Downloading" status but the server says it's done.
       // We also check !isListeningRef.current to perform normal updates.
@@ -47,21 +56,18 @@ export function useServerStatus(
     }
 
     if (res.success && !lastServerStatus.current) {
-      addSystemLog('Whisper Server is Ready');
+      addSystemLog('ASR Server is Ready');
       // Validate additional config on successful connection
-      const cfg = (await window.electronAPI.loadConfig()) as {
-        llm?: { apiKey?: string };
-        whisper?: { model?: string };
-      };
-      if (!cfg?.llm?.apiKey) {
+      const cfg = await window.electronAPI.loadConfig();
+      if (cfg?.llm?.provider !== 'plamo-local' && !cfg?.llm?.apiKey) {
         addSystemLog('WARNING: Groq API Key is missing. Translation will not work.');
       }
-      if (!cfg?.whisper?.model) {
+      if (cfg?.whisper?.provider !== 'sensevoice' && !cfg?.whisper?.model) {
         addSystemLog('WARNING: No Whisper model selected.');
       }
     } else if (!res.success && !res.isDownloading && lastServerStatus.current !== false) {
       // Just showing hint if it remains offline
-      addSystemLog('Whisper Server is Offline.');
+      addSystemLog('ASR Server is Offline.');
 
       // Use configIssues from main process
       if (res.configIssues && res.configIssues.length > 0) {
@@ -69,14 +75,14 @@ export function useServerStatus(
           addSystemLog(`Tip: Missing ${issue}. Please check Settings.`);
         });
       } else {
-        addSystemLog('Tip: Ensure Whisper Server is running (Settings -> Save & Restart).');
+        addSystemLog('Tip: Ensure ASR Server is running (Settings -> Save & Restart).');
       }
     }
     lastServerStatus.current = res.success;
   }, [addSystemLog, isListeningRef, setStatusText, statusText]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     checkServer();
     const intervalId = setInterval(() => {
       checkServer();
@@ -91,6 +97,7 @@ export function useServerStatus(
 
   return {
     serverStatus,
+    fallbackSenseVoiceStatus,
     overlayStatus,
     statusText,
     setStatusText,

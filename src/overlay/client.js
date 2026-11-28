@@ -1,4 +1,3 @@
-/* eslint-env browser */
 /* global io */
 const socket = io();
 

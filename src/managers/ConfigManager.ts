@@ -2,102 +2,11 @@ import { app } from 'electron';
 import Store from 'electron-store';
 import * as fs from 'fs';
 import * as path from 'path';
-import { z } from 'zod';
 
+import { AppConfig, AppConfigSchema, DEFAULT_CONFIG, GlossaryEntry } from '../types/config';
 import { PathUtils } from '../utils/PathUtils';
 
-const DEFAULT_OVERLAY_STYLES = {
-  align: 'left' as const,
-  fontSize: 16,
-  originalColor: '#ffffff',
-  originalStrokeColor: '#000000',
-  translatedColor: '#38bdf8',
-  translatedStrokeColor: '#0c4a6e',
-  backgroundColor: 'transparent',
-  displayFormat: '%1(%2)',
-  maxLines: 0,
-  fadeTimeout: 0,
-  useCustomCSS: false,
-  customCSS: '',
-};
-
-const AppConfigSchema = z.object({
-  whisper: z.object({
-    model: z.string(),
-    language: z.string(),
-    serverPort: z.number(),
-    extraArgs: z.string().optional(),
-    binPath: z.string().optional(),
-    systemPrompt: z.string().optional(),
-    provider: z.enum(['local', 'groq', 'openai']).default('local'),
-    apiKey: z.string().optional(),
-    baseUrl: z.string().optional(),
-  }),
-  llm: z.object({
-    provider: z.enum(['groq', 'openai']),
-    baseUrl: z.string().optional(),
-    apiKey: z.string(),
-    model: z.string(),
-    groqModels: z.array(z.string()).optional(),
-  }),
-  translation: z.object({
-    targetLang: z.string(),
-  }),
-  vad: z.object({
-    silenceDurationMs: z.number(),
-    positiveSpeechThreshold: z.number(),
-    negativeSpeechThreshold: z.number(),
-    minSpeechMs: z.number(),
-    volumeThreshold: z.number().optional(),
-  }),
-
-  overlay: z.object({
-    port: z.number(),
-    styles: z
-      .object({
-        align: z.enum(['left', 'center', 'right']).default(DEFAULT_OVERLAY_STYLES.align),
-        fontSize: z.number().default(DEFAULT_OVERLAY_STYLES.fontSize),
-        originalColor: z.string().default(DEFAULT_OVERLAY_STYLES.originalColor),
-        originalStrokeColor: z.string().default(DEFAULT_OVERLAY_STYLES.originalStrokeColor),
-        translatedColor: z.string().default(DEFAULT_OVERLAY_STYLES.translatedColor),
-        translatedStrokeColor: z.string().default(DEFAULT_OVERLAY_STYLES.translatedStrokeColor),
-        backgroundColor: z.string().default(DEFAULT_OVERLAY_STYLES.backgroundColor),
-        displayFormat: z.string().default(DEFAULT_OVERLAY_STYLES.displayFormat),
-        maxLines: z.number().default(DEFAULT_OVERLAY_STYLES.maxLines),
-        fadeTimeout: z.number().default(DEFAULT_OVERLAY_STYLES.fadeTimeout),
-        useCustomCSS: z.boolean().default(DEFAULT_OVERLAY_STYLES.useCustomCSS),
-        customCSS: z.string().default(DEFAULT_OVERLAY_STYLES.customCSS),
-      })
-      .optional()
-      .default(DEFAULT_OVERLAY_STYLES),
-  }),
-  app: z.object({
-    defaultMicName: z.string(),
-  }),
-  glossary: z
-    .array(
-      z.object({
-        id: z.string(),
-        sourceText: z.string(),
-        sourceLang: z.string(),
-        targetText: z.string(),
-        targetLang: z.string(),
-        bidirectional: z.boolean().optional(),
-      }),
-    )
-    .optional(),
-});
-
-export type AppConfig = z.infer<typeof AppConfigSchema>;
-
-export interface GlossaryEntry {
-  id: string;
-  sourceText: string;
-  sourceLang: string;
-  targetText: string;
-  targetLang: string;
-  bidirectional?: boolean;
-}
+export type { AppConfig, GlossaryEntry };
 
 export class ConfigManager {
   private static instance: ConfigManager;
@@ -131,47 +40,14 @@ export class ConfigManager {
     try {
       const rawConfig = fs.readFileSync(configDefaultPath, 'utf-8');
       const parsed = JSON.parse(rawConfig);
-      // Default config should be valid, but verify anyway
       defaults = AppConfigSchema.parse(parsed);
       console.log('[ConfigManager] Loaded defaults from:', configDefaultPath);
     } catch (error) {
       console.warn(
-        '[ConfigManager] Failed to load config.default.json, falling back to empty defaults',
+        '[ConfigManager] Failed to load config.default.json, falling back to DEFAULT_CONFIG',
         error,
       );
-      // Fallback to avoid crash, though functionality might be limited
-      defaults = {
-        whisper: { model: 'ggml-base.bin', language: 'ja', serverPort: 8081, provider: 'local' },
-        llm: { provider: 'groq', apiKey: '', model: 'auto', groqModels: [] },
-        translation: { targetLang: 'auto' },
-        vad: {
-          silenceDurationMs: 500,
-          positiveSpeechThreshold: 0.5,
-          negativeSpeechThreshold: 0.35,
-          minSpeechMs: 250,
-          volumeThreshold: 0,
-        },
-
-        overlay: {
-          port: 9000,
-          styles: {
-            align: 'left',
-            fontSize: 16,
-            originalColor: '#ffffff',
-            originalStrokeColor: '#000000',
-            translatedColor: '#38bdf8',
-            translatedStrokeColor: '#0c4a6e',
-            backgroundColor: 'transparent',
-            displayFormat: '%1(%2)',
-            maxLines: 0,
-            fadeTimeout: 0,
-            useCustomCSS: false,
-            customCSS: '',
-          },
-        },
-        app: { defaultMicName: '' },
-        glossary: [],
-      } as AppConfig;
+      defaults = DEFAULT_CONFIG;
     }
 
     console.log('[ConfigManager] Instantiating Store with:', {
@@ -197,8 +73,6 @@ export class ConfigManager {
       const result = AppConfigSchema.safeParse(current);
       if (!result.success) {
         console.error('[ConfigManager] Config validation failed:', result.error);
-        // Option: Reset to defaults or just warn?
-        // For now, warn but keep running, maybe the schema is stricter than actual usage
       } else {
         console.log('[ConfigManager] Config validation passed');
       }
@@ -227,7 +101,6 @@ export class ConfigManager {
 
   public save(newConfig: AppConfig): void {
     try {
-      // Validate before saving
       const result = AppConfigSchema.safeParse(newConfig);
       if (!result.success) {
         console.error('[ConfigManager] Invalid config, not saving:', result.error);

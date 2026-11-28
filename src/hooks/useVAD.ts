@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { MicVAD } from '@ricky0123/vad-web';
 
 export function useVAD() {
@@ -103,14 +103,31 @@ export function useVAD() {
     [],
   );
 
-  const stopVAD = useCallback(() => {
-    if (myvad.current) {
-      myvad.current.pause();
-      myvad.current = null;
+  const stopVAD = useCallback(async () => {
+    const vad = myvad.current;
+    myvad.current = null;
+    if (vad) {
+      try {
+        await vad.destroy();
+      } catch (e) {
+        console.warn('VAD Destroy Error:', e);
+        try {
+          await vad.pause();
+        } catch {
+          /* ignore */
+        }
+      }
     }
     setIsListening(false);
+    setIsProcessing(false);
     setVolume(0);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      void stopVAD();
+    };
+  }, [stopVAD]);
 
   return {
     isListening,

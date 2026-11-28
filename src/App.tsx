@@ -4,12 +4,18 @@ import { SettingsModal } from './components/SettingsModal';
 import { useServerStatus } from './hooks/useServerStatus';
 import { useSpeechTranslation } from './hooks/useSpeechTranslation';
 import { LogViewer } from './components/LogViewer';
+import { AppHeader } from './components/AppHeader';
 import { useMicrophone } from './hooks/useMicrophone';
+import { usePlamoLocal } from './hooks/usePlamoLocal';
 import { cn } from './utils/cn';
 
 const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [statusText, setStatusText] = useState('Initializing...');
+  const [asrProvider, setAsrProvider] = useState<string>('');
+  const [fallbackToSenseVoice, setFallbackToSenseVoice] = useState(false);
+  const [llmProvider, setLlmProvider] = useState<string>('');
+  const [fallbackToPlamoLocal, setFallbackToPlamoLocal] = useState(false);
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -32,7 +38,7 @@ const App: React.FC = () => {
     scrollToBottom,
   );
 
-  const { serverStatus, overlayStatus, checkServer } = useServerStatus(
+  const { serverStatus, fallbackSenseVoiceStatus, overlayStatus, checkServer } = useServerStatus(
     isListeningRef,
     addSystemLog,
     setStatusText,
@@ -43,6 +49,8 @@ const App: React.FC = () => {
 
   const { activeMic, loadMicrophones, selectMicrophone, setActiveMic } =
     useMicrophone(addSystemLog);
+
+  const { plamoStatus, preloadPlamoIfNeeded } = usePlamoLocal(addSystemLog, setStatusText);
 
   // --- Effects ---
 
@@ -56,7 +64,23 @@ const App: React.FC = () => {
     window.electronAPI.onOpenSettings(() => {
       setShowSettings(true);
     });
-  }, [addSystemLog]);
+
+    // Preload PLaMo Local model on startup if configured
+    window.electronAPI
+      .loadConfig()
+      .then((cfg) => {
+        setAsrProvider(cfg?.whisper?.provider || 'local');
+        setFallbackToSenseVoice(Boolean(cfg?.whisper?.fallbackToSenseVoice));
+        const provider = cfg?.llm?.provider || '';
+        const fallback = Boolean(cfg?.llm?.fallbackToPlamoLocal);
+        setLlmProvider(provider);
+        setFallbackToPlamoLocal(fallback);
+        preloadPlamoIfNeeded(provider, cfg?.llm?.model, fallback);
+      })
+      .catch(() => {
+        /* ignore */
+      });
+  }, [addSystemLog, preloadPlamoIfNeeded]);
   useEffect(() => {
     if (volumeRef.current) {
       volumeRef.current.style.width = `${Math.min(100, volume * 500)}%`;
@@ -78,16 +102,7 @@ const App: React.FC = () => {
   const startRecording = async () => {
     setStatusText('Starting VAD...');
     try {
-      const currentConfig = (await window.electronAPI.loadConfig()) as {
-        app?: { defaultMicName?: string };
-        vad?: {
-          silenceDurationMs?: number;
-          positiveSpeechThreshold?: number;
-          negativeSpeechThreshold?: number;
-          minSpeechMs?: number;
-          volumeThreshold?: number;
-        };
-      };
+      const currentConfig = await window.electronAPI.loadConfig();
       const micLabel = currentConfig?.app?.defaultMicName;
       // 1. Exact Match & Selection
       const mics = await loadMicrophones();
@@ -125,6 +140,18 @@ const App: React.FC = () => {
   };
 
   const handleSettingsSaved = async () => {
+    try {
+      const cfg = await window.electronAPI.loadConfig();
+      setAsrProvider(cfg?.whisper?.provider || 'local');
+      setFallbackToSenseVoice(Boolean(cfg?.whisper?.fallbackToSenseVoice));
+      const provider = cfg?.llm?.provider || '';
+      const fallback = Boolean(cfg?.llm?.fallbackToPlamoLocal);
+      setLlmProvider(provider);
+      setFallbackToPlamoLocal(fallback);
+      preloadPlamoIfNeeded(provider, cfg?.llm?.model, fallback);
+    } catch {
+      /* ignore */
+    }
     await checkServer();
     if (isListeningRef.current) {
       addSystemLog('Settings saved. Restarting VAD to apply changes...');
@@ -138,32 +165,18 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-gray-100 p-4 font-sans">
-      <header className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold bg-linear-to-r from-primary to-accent bg-clip-text text-transparent">
-            Talklate4u
-          </h1>
-          <span
-            className={cn('badge badge-outline', serverStatus ? 'badge-success' : 'badge-error')}
-          >
-            {serverStatus ? 'Whisper Ready' : 'Whisper Offline'}
-          </span>
-          <span
-            className={cn(
-              'badge badge-outline',
-              overlayStatus?.success ? 'badge-success' : 'badge-error',
-            )}
-            title={
-              overlayStatus?.success ? `Port: ${overlayStatus.port}` : 'Overlay Server not running'
-            }
-          >
-            {overlayStatus?.success ? 'Overlay Ready' : 'Overlay Offline'}
-          </span>
-        </div>
-        <button className="btn btn-sm btn-ghost" onClick={() => setShowSettings(true)}>
-          ⚙️ Settings
-        </button>
-      </header>
+      <AppHeader
+        asrProvider={asrProvider}
+        serverStatus={serverStatus}
+        fallbackToSenseVoice={fallbackToSenseVoice}
+        fallbackSenseVoiceStatus={fallbackSenseVoiceStatus}
+        overlayStatus={overlayStatus}
+        llmProvider={llmProvider}
+        fallbackToPlamoLocal={fallbackToPlamoLocal}
+        plamoStatus={plamoStatus}
+        statusText={statusText}
+        onOpenSettings={() => setShowSettings(true)}
+      />
 
       <main className="flex-1 flex flex-col gap-4 overflow-hidden">
         <LogViewer logs={logs} containerRef={logsContainerRef} />
@@ -192,7 +205,24 @@ const App: React.FC = () => {
             </button>
           </div>
 
-          <div className="text-xs text-center text-gray-500">Status: {statusText}</div>
+          <div className="flex justify-between items-center text-xs text-gray-500">
+            <span className={llmProvider === 'plamo-local' ? '' : 'w-full text-center'}>
+              Status: {statusText}
+            </span>
+            {llmProvider === 'plamo-local' && (
+              <span>
+                Built with{' '}
+                <a
+                  href="https://plamo.preferredai.jp/info/plamo-community-license-ja"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline hover:text-gray-300"
+                >
+                  PLaMo
+                </a>
+              </span>
+            )}
+          </div>
         </div>
       </main>
 
