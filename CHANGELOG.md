@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- chore: Migrated ESLint to v9 Flat Config (`eslint.config.mjs`) with `@typescript-eslint` v8 and aligned `typescript` to `^6.0.x` (`package.json`, `package-lock.json`, `eslint.config.mjs`).
 - chore: Upgraded `typescript` to `^7.0.2` and `jimp` to `^2.2.1` (`package.json`, `package-lock.json`).
 - chore: Upgraded `react` / `react-dom` (+ `@types`) to `v19`, `electron-store` to `^12.0.0`, and `dotenv` to `^18.0.10` (`package.json`, `package-lock.json`).
 - chore: Upgraded `openai` SDK to `^7.65.0` (`package.json`, `package-lock.json`).

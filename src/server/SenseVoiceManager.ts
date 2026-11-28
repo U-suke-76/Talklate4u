@@ -6,7 +6,7 @@ import { ConfigManager } from '../managers/ConfigManager';
 import { resolveLanguage } from '../utils/detectLanguage';
 import { downloadFileWithProgress } from '../utils/FileDownloader';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+ 
 const sherpaOnnx = require('sherpa-onnx-node');
 
 const IS_DEV = process.env.NODE_ENV === 'development';
