@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { MicVAD } from '@ricky0123/vad-web';
 
 export function useVAD() {
@@ -122,6 +122,12 @@ export function useVAD() {
     setIsProcessing(false);
     setVolume(0);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      void stopVAD();
+    };
+  }, [stopVAD]);
 
   return {
     isListening,

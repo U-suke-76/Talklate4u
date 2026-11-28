@@ -5,6 +5,7 @@ export interface WhisperStatusResult {
   isDownloading?: boolean;
   progress?: string;
   configIssues?: string[];
+  fallbackSenseVoiceStatus?: 'idle' | 'loading' | 'ready' | 'error';
 }
 
 export interface TranscribeResponse {

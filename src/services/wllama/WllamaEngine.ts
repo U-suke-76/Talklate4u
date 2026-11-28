@@ -244,6 +244,7 @@ export class PlamoLocalService {
   private engine: WllamaEngine | null = null;
   private currentModelId = '';
   private initPromise: Promise<void> | null = null;
+  private executionQueue: Promise<unknown> = Promise.resolve();
   private progressText = '';
 
   public static getInstance(): PlamoLocalService {
@@ -323,7 +324,7 @@ export class PlamoLocalService {
     return this.initPromise;
   }
 
-  public async execute(options: {
+  public execute(options: {
     modelId?: string;
     messages: WllamaChatMessage[];
     stop?: string[];
@@ -333,26 +334,31 @@ export class PlamoLocalService {
     onProgress?: (msg: string) => void;
     onChunk?: (delta: string) => void;
   }): Promise<string> {
-    await this.ensureLoaded(options.modelId, options.onProgress);
+    const task = this.executionQueue.then(async () => {
+      await this.ensureLoaded(options.modelId, options.onProgress);
 
-    if (!this.engine) {
-      throw new Error('PLaMo Local Engine failed to initialize');
-    }
+      if (!this.engine) {
+        throw new Error('PLaMo Local Engine failed to initialize');
+      }
 
-    let rawOutput = await this.engine.chat(options.messages, {
-      temperature: options.temperature,
-      chat_template_kwargs: options.chat_template_kwargs,
-      onChunk: options.onChunk,
-    });
-
-    if (!rawOutput && options.fallbackPrompt) {
-      rawOutput = await this.engine.generate(options.fallbackPrompt, {
+      let rawOutput = await this.engine.chat(options.messages, {
         temperature: options.temperature,
-        stop: options.stop,
+        chat_template_kwargs: options.chat_template_kwargs,
         onChunk: options.onChunk,
       });
-    }
 
-    return rawOutput;
+      if (!rawOutput && options.fallbackPrompt) {
+        rawOutput = await this.engine.generate(options.fallbackPrompt, {
+          temperature: options.temperature,
+          stop: options.stop,
+          onChunk: options.onChunk,
+        });
+      }
+
+      return rawOutput;
+    });
+
+    this.executionQueue = task.catch(() => undefined);
+    return task;
   }
 }

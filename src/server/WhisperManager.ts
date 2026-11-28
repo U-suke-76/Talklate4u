@@ -391,9 +391,7 @@ export class WhisperManager extends EventEmitter {
     return parts.join(' ');
   }
 
-  public async transcribe(
-    buffer: ArrayBuffer,
-  ): Promise<{
+  public async transcribe(buffer: ArrayBuffer): Promise<{
     text?: string;
     language?: string;
     error?: string;

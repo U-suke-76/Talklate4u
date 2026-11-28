@@ -6,6 +6,7 @@ export interface ServerStatusResult {
   isDownloading?: boolean;
   progress?: string;
   configIssues?: string[];
+  fallbackSenseVoiceStatus?: 'idle' | 'loading' | 'ready' | 'error';
 }
 
 export interface OverlayStatusResult {
@@ -20,12 +21,16 @@ export function useServerStatus(
   statusText: string, // We might need the current value for checking "Downloading" state if logic depends on it, but here it depends on `res.isDownloading`.
 ) {
   const [serverStatus, setServerStatus] = useState(false);
+  const [fallbackSenseVoiceStatus, setFallbackSenseVoiceStatus] = useState<
+    'idle' | 'loading' | 'ready' | 'error'
+  >('idle');
   const [overlayStatus, setOverlayStatus] = useState<OverlayStatusResult | null>(null);
   const lastServerStatus = useRef<boolean | null>(null);
 
   const checkServer = useCallback(async () => {
     const res = await window.electronAPI.checkWhisperStatus();
     setServerStatus(res.success);
+    setFallbackSenseVoiceStatus(res.fallbackSenseVoiceStatus ?? 'idle');
 
     // Check overlay status
     const overlayRes = await window.electronAPI.checkOverlayStatus();
@@ -62,7 +67,7 @@ export function useServerStatus(
       }
     } else if (!res.success && !res.isDownloading && lastServerStatus.current !== false) {
       // Just showing hint if it remains offline
-      addSystemLog('Whisper Server is Offline.');
+      addSystemLog('ASR Server is Offline.');
 
       // Use configIssues from main process
       if (res.configIssues && res.configIssues.length > 0) {
@@ -70,7 +75,7 @@ export function useServerStatus(
           addSystemLog(`Tip: Missing ${issue}. Please check Settings.`);
         });
       } else {
-        addSystemLog('Tip: Ensure Whisper Server is running (Settings -> Save & Restart).');
+        addSystemLog('Tip: Ensure ASR Server is running (Settings -> Save & Restart).');
       }
     }
     lastServerStatus.current = res.success;
@@ -92,6 +97,7 @@ export function useServerStatus(
 
   return {
     serverStatus,
+    fallbackSenseVoiceStatus,
     overlayStatus,
     statusText,
     setStatusText,

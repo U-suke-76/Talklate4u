@@ -22,6 +22,7 @@ export class AsrService extends EventEmitter {
   private groqCooldownUntil = 0;
   private groqConsecutive429Count = 0;
   private senseVoiceStartingPromise: Promise<void> | null = null;
+  private senseVoiceFallbackError: string | null = null;
   private readonly GROQ_FALLBACK_COOLDOWN_MS = 60 * 1000;
   private readonly MAX_GROQ_RECOVERY_RETRIES = 3;
 
@@ -41,12 +42,17 @@ export class AsrService extends EventEmitter {
   public resetFallbackState(): void {
     this.groqCooldownUntil = 0;
     this.groqConsecutive429Count = 0;
+    this.senseVoiceFallbackError = null;
   }
 
   private async ensureSenseVoiceReady(language?: string): Promise<void> {
     const status = await this.senseVoiceManager.checkStatus();
-    if (status.running) return;
+    if (status.running) {
+      this.senseVoiceFallbackError = null;
+      return;
+    }
     if (!this.senseVoiceStartingPromise) {
+      this.senseVoiceFallbackError = null;
       this.senseVoiceStartingPromise = this.senseVoiceManager.start(language).finally(() => {
         this.senseVoiceStartingPromise = null;
       });
@@ -57,6 +63,7 @@ export class AsrService extends EventEmitter {
   private preloadSenseVoiceForFallback(language?: string): void {
     void this.ensureSenseVoiceReady(language).catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
+      this.senseVoiceFallbackError = msg;
       console.warn(`[AsrService] SenseVoice fallback preload failed: ${msg}`);
     });
   }
@@ -83,12 +90,27 @@ export class AsrService extends EventEmitter {
     isDownloading: boolean;
     progress: string;
     configIssues: string[];
+    fallbackSenseVoiceStatus: 'idle' | 'loading' | 'ready' | 'error';
   }> {
     const config = ConfigManager.getInstance().getConfig();
     const isSenseVoice = config.whisper.provider === 'sensevoice';
+    const isGroqFallback =
+      config.whisper.provider === 'groq' && Boolean(config.whisper.fallbackToSenseVoice);
     const isRunning = isSenseVoice
       ? (await this.senseVoiceManager.checkStatus()).running
       : (await this.whisperManager.checkStatus()).running;
+
+    let fallbackSenseVoiceStatus: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
+    if (isGroqFallback) {
+      const svRunning = (await this.senseVoiceManager.checkStatus()).running;
+      if (svRunning) {
+        fallbackSenseVoiceStatus = 'ready';
+      } else if (this.senseVoiceFallbackError) {
+        fallbackSenseVoiceStatus = 'error';
+      } else {
+        fallbackSenseVoiceStatus = 'loading';
+      }
+    }
 
     const missing: string[] = [];
     if (!isSenseVoice && !config.whisper?.model) missing.push('Whisper Model');
@@ -97,15 +119,22 @@ export class AsrService extends EventEmitter {
     if (provider === 'groq' && !apiKey) missing.push('Groq API Key');
     if (provider === 'openai' && !baseUrl && !apiKey) missing.push('OpenAI API Key');
 
+    const isDownloading = isSenseVoice
+      ? this.senseVoiceManager.isDownloading
+      : this.whisperManager.isDownloading ||
+        (isGroqFallback && this.senseVoiceManager.isDownloading);
+    const progress = isSenseVoice
+      ? this.senseVoiceManager.downloadProgress
+      : isGroqFallback && this.senseVoiceManager.isDownloading
+        ? this.senseVoiceManager.downloadProgress
+        : this.whisperManager.downloadProgress;
+
     return {
       success: isRunning,
-      isDownloading: isSenseVoice
-        ? this.senseVoiceManager.isDownloading
-        : this.whisperManager.isDownloading,
-      progress: isSenseVoice
-        ? this.senseVoiceManager.downloadProgress
-        : this.whisperManager.downloadProgress,
+      isDownloading,
+      progress,
       configIssues: missing,
+      fallbackSenseVoiceStatus,
     };
   }
 

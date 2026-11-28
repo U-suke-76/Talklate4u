@@ -11,6 +11,8 @@ import { cn } from './utils/cn';
 const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [statusText, setStatusText] = useState('Initializing...');
+  const [asrProvider, setAsrProvider] = useState<string>('');
+  const [fallbackToSenseVoice, setFallbackToSenseVoice] = useState(false);
   const [llmProvider, setLlmProvider] = useState<string>('');
   const [fallbackToPlamoLocal, setFallbackToPlamoLocal] = useState(false);
   const [plamoStatus, setPlamoStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
@@ -36,7 +38,7 @@ const App: React.FC = () => {
     scrollToBottom,
   );
 
-  const { serverStatus, overlayStatus, checkServer } = useServerStatus(
+  const { serverStatus, fallbackSenseVoiceStatus, overlayStatus, checkServer } = useServerStatus(
     isListeningRef,
     addSystemLog,
     setStatusText,
@@ -145,6 +147,8 @@ const App: React.FC = () => {
     window.electronAPI
       .loadConfig()
       .then((cfg) => {
+        setAsrProvider(cfg?.whisper?.provider || 'local');
+        setFallbackToSenseVoice(Boolean(cfg?.whisper?.fallbackToSenseVoice));
         const provider = cfg?.llm?.provider || '';
         const fallback = Boolean(cfg?.llm?.fallbackToPlamoLocal);
         setLlmProvider(provider);
@@ -216,6 +220,8 @@ const App: React.FC = () => {
   const handleSettingsSaved = async () => {
     try {
       const cfg = await window.electronAPI.loadConfig();
+      setAsrProvider(cfg?.whisper?.provider || 'local');
+      setFallbackToSenseVoice(Boolean(cfg?.whisper?.fallbackToSenseVoice));
       const provider = cfg?.llm?.provider || '';
       const fallback = Boolean(cfg?.llm?.fallbackToPlamoLocal);
       setLlmProvider(provider);
@@ -235,6 +241,15 @@ const App: React.FC = () => {
     }
   };
 
+  const asrLabel =
+    asrProvider === 'sensevoice'
+      ? 'SenseVoice'
+      : asrProvider === 'groq'
+        ? 'Groq Whisper'
+        : asrProvider === 'openai'
+          ? 'OpenAI Whisper'
+          : 'Whisper';
+
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-gray-100 p-4 font-sans">
       <header className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
@@ -245,8 +260,27 @@ const App: React.FC = () => {
           <span
             className={cn('badge badge-outline', serverStatus ? 'badge-success' : 'badge-error')}
           >
-            {serverStatus ? 'Whisper Ready' : 'Whisper Offline'}
+            {serverStatus ? `${asrLabel} Ready` : `${asrLabel} Offline`}
           </span>
+          {asrProvider === 'groq' && fallbackToSenseVoice && (
+            <span
+              className={cn(
+                'badge badge-outline',
+                fallbackSenseVoiceStatus === 'ready'
+                  ? 'badge-success'
+                  : fallbackSenseVoiceStatus === 'error'
+                    ? 'badge-error'
+                    : 'badge-warning',
+              )}
+              title={statusText}
+            >
+              {fallbackSenseVoiceStatus === 'ready'
+                ? 'SenseVoice Standby'
+                : fallbackSenseVoiceStatus === 'error'
+                  ? 'SenseVoice Error'
+                  : 'SenseVoice Loading...'}
+            </span>
+          )}
           <span
             className={cn(
               'badge badge-outline',
