@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- chore: Upgraded `electron` to `^45.5.0` (Chromium 156 / Node.js 24.22) (`package.json`, `package-lock.json`).
 - chore: Upgraded `@electron-forge/*` to `v8.0.1`, `@electron/fuses` to `v2`, `vite` to `v8.4.0`, `vitest` to `v5.1.2`, `@vitejs/plugin-react` to `v6.3.0`, and `vite-plugin-static-copy` to `v4.1.1`, resolving all remaining `npm audit` vulnerabilities (`0 vulnerabilities`). Updated `forge.config.ts` (`PublisherGitHub` export name and `@electron/packager` v21 `afterExtract` hook signature) and `tests/unit/WllamaEngine.test.ts` (Vitest 5 constructor mock syntax).
 - chore: Updated `nodejs-whisper` to `0.4.1` to address GHSA-2f48-3555-fpx6 (`package.json`, `package-lock.json`).
 - chore: Updated transitive and runtime dependencies via `npm audit fix` (`electron`, `body-parser`, `follow-redirects`, `undici`, `zod`, `fast-uri`, `qs`), reducing reported vulnerabilities from 74 to 39.
