@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-28
+
 ### Changed
 
 - docs: Updated `README.md`, `README.ja.md`, `README.ko.md`, `docs/design.md`, `docs/requirements.md`, and `docs/coding_guidelines.md` to reflect v0.1.0 features (SenseVoice-Small local ASR, PLaMo 3 Translate local WebGPU, Groq 429 fallback, streaming display, multilingual glossary packs, and refactored module layout).
