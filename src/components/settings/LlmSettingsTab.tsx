@@ -248,13 +248,11 @@ export const LlmSettingsTab: React.FC<LlmSettingsTabProps> = ({
               })
             }
           />
-          <span className="text-sm text-gray-300">
-            翻訳テキストをリアルタイムに逐次表示する（Groq / OpenAI 互換）
-          </span>
+          <span className="text-sm text-gray-300">翻訳テキストをリアルタイムに逐次表示する</span>
         </label>
         <p className="text-xs text-gray-400">
-          有効にすると LLM の生成に合わせてオーバーレイ字幕が 1 文字ずつ流れます（ローカル WebGPU
-          は一括表示のまま動作します）。
+          有効にすると LLM の生成に合わせてメイン画面およびオーバーレイ字幕が逐次表示されます（Groq
+          / OpenAI 互換 / PLaMo Local に対応）。
         </p>
       </div>
     </div>

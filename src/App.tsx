@@ -118,6 +118,14 @@ const App: React.FC = () => {
           fallbackPrompt: payload.fallbackPrompt,
           temperature: payload.temperature,
           onProgress: logPlamoProgress,
+          onChunk: payload.stream
+            ? (delta) => {
+                window.electronAPI.sendPlamoTranslateChunk({
+                  requestId: payload.requestId,
+                  delta,
+                });
+              }
+            : undefined,
         });
         window.electronAPI.sendPlamoTranslateResult({
           requestId: payload.requestId,

@@ -27,7 +27,9 @@ export interface ElectronAPI {
   translateText: (
     text: string,
     detectedLanguage?: string,
+    logId?: number,
   ) => Promise<{ text?: string | null; error?: string }>;
+  onTranslationPartial: (callback: (payload: { logId: number; text: string }) => void) => void;
   getGroqModels: (apiKey: string) => Promise<string[]>;
 
   onDownloadProgress: (callback: (message: string) => void) => void;
@@ -42,8 +44,10 @@ export interface ElectronAPI {
       chat_template_kwargs?: Record<string, unknown>;
       fallbackPrompt?: string;
       temperature?: number;
+      stream?: boolean;
     }) => void,
   ) => void;
+  sendPlamoTranslateChunk: (payload: { requestId: string; delta: string }) => void;
   sendPlamoTranslateResult: (payload: { requestId: string; text?: string; error?: string }) => void;
   sendDownloadProgress: (progress: string) => void;
 

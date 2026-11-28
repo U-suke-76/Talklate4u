@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { createWavBuffer } from '../utils/audioUtils';
 
 export interface LogItem {
@@ -27,6 +27,15 @@ export function useSpeechTranslation(
 ) {
   const [logs, setLogs] = useState<LogItem[]>([]);
   const logIdCounter = useRef(1);
+
+  useEffect(() => {
+    window.electronAPI?.onTranslationPartial?.(({ logId, text }) => {
+      setLogs((prev) =>
+        prev.map((log) => (log.id === logId ? { ...log, translated: text } : log)),
+      );
+      scrollToBottom();
+    });
+  }, [scrollToBottom]);
 
   const addSystemLog = useCallback(
     (message: string) => {
@@ -89,6 +98,7 @@ export function useSpeechTranslation(
       const transRes = (await window.electronAPI.translateText(
         originalText,
         detectedLang,
+        currentId,
       )) as TranslateResponse;
       const transTime = new Date().toLocaleTimeString();
 

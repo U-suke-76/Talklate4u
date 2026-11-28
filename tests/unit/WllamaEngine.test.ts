@@ -175,4 +175,28 @@ describe('PlamoLocalService', () => {
     expect(mockCreateCompletion).toHaveBeenCalledTimes(1);
     expect(out).toBe('Fallback Translated');
   });
+
+  it('streams chat chunks via onChunk when provided to execute()', async () => {
+    mockCreateChatCompletion.mockImplementationOnce(
+      async (opts: {
+        stream?: boolean;
+        onData?: (chunk: { choices: Array<{ delta: { content: string } }> }) => void;
+      }) => {
+        expect(opts.stream).toBe(true);
+        opts.onData?.({ choices: [{ delta: { content: 'Hel' } }] });
+        opts.onData?.({ choices: [{ delta: { content: 'lo!' } }] });
+      },
+    );
+
+    const chunks: string[] = [];
+    const service = PlamoLocalService.getInstance();
+    const out = await service.execute({
+      modelId: 'plamo-3-translate-0.8b',
+      messages: [{ role: 'user', content: 'こんにちは' }],
+      onChunk: (delta) => chunks.push(delta),
+    });
+
+    expect(chunks).toEqual(['Hel', 'lo!']);
+    expect(out).toBe('Hello!');
+  });
 });

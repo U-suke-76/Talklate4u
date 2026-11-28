@@ -58,9 +58,19 @@ const translationService = new TranslationService(overlayServer, (msg) => {
 
 const pendingPlamoRequests = new Map<
   string,
-  { resolve: (text: string) => void; reject: (err: Error) => void }
+  {
+    resolve: (text: string) => void;
+    reject: (err: Error) => void;
+    onChunk?: (delta: string) => void;
+  }
 >();
 let plamoReqIdCounter = 1;
+
+translationService.setOnPartialTranslation((payload) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('translation-partial', payload);
+  }
+});
 
 translationService.setLocalTranslator(async (params) => {
   const win = mainWindow;
@@ -68,6 +78,7 @@ translationService.setLocalTranslator(async (params) => {
     throw new Error('Main window is not available for WebGPU inference');
   }
   const requestId = `plamo-${Date.now()}-${plamoReqIdCounter++}`;
+  const { onChunk, ...ipcParams } = params;
   return new Promise<string>((resolve, reject) => {
     const timer = setTimeout(() => {
       pendingPlamoRequests.delete(requestId);
@@ -83,13 +94,21 @@ translationService.setLocalTranslator(async (params) => {
         clearTimeout(timer);
         reject(err);
       },
+      onChunk,
     });
 
     win.webContents.send('plamo-translate-request', {
       requestId,
-      ...params,
+      ...ipcParams,
+      stream: Boolean(onChunk),
     });
   });
+});
+
+ipcMain.on('plamo-translate-chunk', (_event, payload: { requestId: string; delta: string }) => {
+  const pending = pendingPlamoRequests.get(payload.requestId);
+  if (!pending || !payload.delta) return;
+  pending.onChunk?.(payload.delta);
 });
 
 ipcMain.on(
@@ -226,9 +245,12 @@ ipcMain.handle('transcribe-audio', async (_e, buffer: ArrayBuffer) => {
 });
 
 // Translate
-ipcMain.handle('translate-text', async (_e, text: string, detectedLanguage?: string) => {
-  return await translationService.translate(text, detectedLanguage);
-});
+ipcMain.handle(
+  'translate-text',
+  async (_e, text: string, detectedLanguage?: string, logId?: number) => {
+    return await translationService.translate(text, detectedLanguage, logId);
+  },
+);
 
 // Get Groq Models
 ipcMain.handle('get-groq-models', async (_e, apiKey: string) => {

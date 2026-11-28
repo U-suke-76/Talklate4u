@@ -226,7 +226,7 @@ export class WhisperManager extends EventEmitter {
         // Execute from the same directory as the binary so Windows can find DLLs
         const binDir = path.dirname(this.binPath);
         this.process = spawn(this.binPath, args, { cwd: binDir });
-         
+
         const child = this.process;
 
         // Monitor for immediate exit (e.g. invalid args)

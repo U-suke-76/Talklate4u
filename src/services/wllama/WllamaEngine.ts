@@ -133,6 +133,7 @@ export class WllamaEngine {
       maxTokens?: number;
       temperature?: number;
       chat_template_kwargs?: Record<string, unknown>;
+      onChunk?: (delta: string) => void;
     },
   ): Promise<string> {
     if (!this.wllama || !this.isLoaded) {
@@ -141,6 +142,25 @@ export class WllamaEngine {
 
     const maxTokens = options?.maxTokens ?? this.options.maxTokens ?? 256;
     const temperature = options?.temperature ?? this.options.temperature ?? 0.2;
+
+    if (options?.onChunk) {
+      let accumulated = '';
+      await this.wllama.createChatCompletion({
+        messages,
+        chat_template_kwargs: options.chat_template_kwargs as Record<string, string>,
+        max_tokens: maxTokens,
+        temperature,
+        stream: true,
+        onData: (chunk) => {
+          const delta = chunk.choices?.[0]?.delta?.content;
+          if (delta) {
+            accumulated += delta;
+            options.onChunk?.(delta);
+          }
+        },
+      });
+      return accumulated;
+    }
 
     const response = await this.wllama.createChatCompletion({
       messages,
@@ -154,7 +174,12 @@ export class WllamaEngine {
 
   public async generate(
     prompt: string,
-    options?: { maxTokens?: number; temperature?: number; stop?: string[] },
+    options?: {
+      maxTokens?: number;
+      temperature?: number;
+      stop?: string[];
+      onChunk?: (delta: string) => void;
+    },
   ): Promise<string> {
     if (!this.wllama || !this.isLoaded) {
       throw new Error('WllamaEngine is not loaded. Call init() first.');
@@ -162,6 +187,25 @@ export class WllamaEngine {
 
     const maxTokens = options?.maxTokens ?? this.options.maxTokens ?? 256;
     const temperature = options?.temperature ?? this.options.temperature ?? 0.2;
+
+    if (options?.onChunk) {
+      let accumulated = '';
+      await this.wllama.createCompletion({
+        prompt,
+        max_tokens: maxTokens,
+        temperature,
+        stop: options.stop,
+        stream: true,
+        onData: (chunk) => {
+          const delta = chunk.choices?.[0]?.text;
+          if (delta) {
+            accumulated += delta;
+            options.onChunk?.(delta);
+          }
+        },
+      });
+      return accumulated;
+    }
 
     const response = await this.wllama.createCompletion({
       prompt,
@@ -287,6 +331,7 @@ export class PlamoLocalService {
     fallbackPrompt?: string;
     temperature?: number;
     onProgress?: (msg: string) => void;
+    onChunk?: (delta: string) => void;
   }): Promise<string> {
     await this.ensureLoaded(options.modelId, options.onProgress);
 
@@ -297,12 +342,14 @@ export class PlamoLocalService {
     let rawOutput = await this.engine.chat(options.messages, {
       temperature: options.temperature,
       chat_template_kwargs: options.chat_template_kwargs,
+      onChunk: options.onChunk,
     });
 
     if (!rawOutput && options.fallbackPrompt) {
       rawOutput = await this.engine.generate(options.fallbackPrompt, {
         temperature: options.temperature,
         stop: options.stop,
+        onChunk: options.onChunk,
       });
     }
 

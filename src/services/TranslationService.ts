@@ -57,6 +57,7 @@ export class TranslationService {
   ];
 
   private onLog: (msg: string) => void;
+  private onPartialTranslation: ((payload: { logId: number; text: string }) => void) | null = null;
   private localTranslator:
     | ((params: {
         model: string;
@@ -65,6 +66,7 @@ export class TranslationService {
         chat_template_kwargs?: Record<string, unknown>;
         fallbackPrompt?: string;
         temperature?: number;
+        onChunk?: (delta: string) => void;
       }) => Promise<string>)
     | null = null;
 
@@ -84,9 +86,46 @@ export class TranslationService {
       chat_template_kwargs?: Record<string, unknown>;
       fallbackPrompt?: string;
       temperature?: number;
+      onChunk?: (delta: string) => void;
     }) => Promise<string>,
   ) {
     this.localTranslator = fn;
+  }
+
+  public setOnPartialTranslation(fn: (payload: { logId: number; text: string }) => void) {
+    this.onPartialTranslation = fn;
+  }
+
+  private createStreamChunkHandler(
+    subtitleId: string,
+    originalText: string,
+    cleanPartial: (raw: string) => string,
+    logId?: number,
+  ): (delta: string) => void {
+    let accumulated = '';
+    let lastBroadcastAt = 0;
+    let lastBroadcastText = '';
+    return (delta: string) => {
+      if (!delta) return;
+      accumulated += delta;
+      const now = Date.now();
+      if (now - lastBroadcastAt >= this.STREAM_THROTTLE_MS) {
+        const partial = cleanPartial(accumulated);
+        if (partial && partial !== lastBroadcastText) {
+          this.overlayServer.broadcast('translation', {
+            id: subtitleId,
+            original: originalText,
+            translation: partial,
+            pending: true,
+          });
+          if (logId !== undefined) {
+            this.onPartialTranslation?.({ logId, text: partial });
+          }
+          lastBroadcastText = partial;
+          lastBroadcastAt = now;
+        }
+      }
+    };
   }
 
   private getLLMClient(): OpenAI | null {
@@ -312,6 +351,7 @@ export class TranslationService {
     subtitleId: string,
     modelId: string,
     isFallback = false,
+    logId?: number,
   ): Promise<{ text?: string | null; error?: string }> {
     if (!this.localTranslator) {
       this.overlayServer.broadcast('translation_remove', { id: subtitleId });
@@ -346,6 +386,14 @@ export class TranslationService {
 
       for (let genAttempt = 1; genAttempt <= maxGenRetries; genAttempt++) {
         const currentTemperature = Number((0.2 + (genAttempt - 1) * 0.1).toFixed(1));
+        const onChunk = config.translation?.streamingDisplay
+          ? this.createStreamChunkHandler(
+              subtitleId,
+              text,
+              (raw) => adapter.cleanPartialOutput(raw),
+              logId,
+            )
+          : undefined;
         const result = await this.localTranslator({
           model: modelId,
           messages: adapterRequest.messages,
@@ -353,6 +401,7 @@ export class TranslationService {
           chat_template_kwargs: adapterRequest.chat_template_kwargs,
           fallbackPrompt: adapterRequest.fallbackPrompt,
           temperature: currentTemperature,
+          onChunk,
         });
         duration = Date.now() - start;
 
@@ -405,6 +454,7 @@ export class TranslationService {
   public async translate(
     text: string,
     detectedLanguage?: string,
+    logId?: number,
   ): Promise<{ text?: string | null; error?: string }> {
     if (!text.trim()) return { text: '' };
 
@@ -433,7 +483,14 @@ export class TranslationService {
     if (isLocalPlamo) {
       const localModel =
         currentModel === 'plamo-3-translate-2b' ? 'plamo-3-translate-2b' : 'plamo-3-translate-0.8b';
-      return this.translateWithLocalPlamo(text, detectedLanguage, subtitleId, localModel, false);
+      return this.translateWithLocalPlamo(
+        text,
+        detectedLanguage,
+        subtitleId,
+        localModel,
+        false,
+        logId,
+      );
     }
 
     if (canFallbackToPlamo && Date.now() < this.groqCooldownUntil) {
@@ -443,6 +500,7 @@ export class TranslationService {
         subtitleId,
         this.FALLBACK_PLAMO_MODEL,
         true,
+        logId,
       );
     }
 
@@ -529,6 +587,14 @@ export class TranslationService {
               this.overlayServer.broadcast('translation_remove', { id: subtitleId });
               return { text: null, error: 'PLaMo Local Translator not initialized' };
             }
+            const onChunk = config.translation?.streamingDisplay
+              ? this.createStreamChunkHandler(
+                  subtitleId,
+                  text,
+                  (raw) => adapter.cleanPartialOutput(raw),
+                  logId,
+                )
+              : undefined;
             result = await this.localTranslator({
               model: modelToUse,
               messages: adapterRequest.messages,
@@ -536,6 +602,7 @@ export class TranslationService {
               chat_template_kwargs: adapterRequest.chat_template_kwargs,
               fallbackPrompt: adapterRequest.fallbackPrompt,
               temperature: currentTemperature,
+              onChunk,
             });
             duration = Date.now() - start;
           } else {
@@ -565,27 +632,17 @@ export class TranslationService {
                 stream: true,
               });
 
-              let lastBroadcastAt = 0;
-              let lastBroadcastText = '';
+              const handleChunk = this.createStreamChunkHandler(
+                subtitleId,
+                text,
+                (raw) => adapter.cleanPartialOutput(raw),
+                logId,
+              );
               for await (const chunk of stream) {
                 const delta = chunk.choices[0]?.delta?.content;
                 if (!delta) continue;
                 result += delta;
-
-                const now = Date.now();
-                if (now - lastBroadcastAt >= this.STREAM_THROTTLE_MS) {
-                  const partial = adapter.cleanPartialOutput(result);
-                  if (partial && partial !== lastBroadcastText) {
-                    this.overlayServer.broadcast('translation', {
-                      id: subtitleId,
-                      original: text,
-                      translation: partial,
-                      pending: true,
-                    });
-                    lastBroadcastText = partial;
-                    lastBroadcastAt = now;
-                  }
-                }
+                handleChunk(delta);
               }
               duration = Date.now() - start;
             } else {
@@ -699,6 +756,7 @@ export class TranslationService {
               subtitleId,
               this.FALLBACK_PLAMO_MODEL,
               true,
+              logId,
             );
           }
           this.overlayServer.broadcast('translation_remove', { id: subtitleId });
